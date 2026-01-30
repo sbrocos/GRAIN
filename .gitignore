@@ -1,0 +1,23 @@
+# Build artifacts
+Builds/
+JuceLibraryCode/
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+DerivedData/
+
+# Projucer backup
+*.jucer.bak
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
