@@ -29,7 +29,9 @@ GRAIN/
 │   ├── PluginProcessor.h    # Audio processing logic
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
-│   └── PluginEditor.cpp
+│   ├── PluginEditor.cpp
+│   └── Tests/
+│       └── DSPTests.cpp
 ├── GRAIN.jucer              # Projucer project file
 └── CLAUDE.md                # This file
 ```
@@ -82,6 +84,20 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 - **DAWs:** Logic Pro, Ableton Live
 - **VST3 path:** `~/Library/Audio/Plug-Ins/VST3/`
 
+### Validation
+```bash
+pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+```
+
+### Unit Tests
+Run automatically in Debug builds (see `Source/Tests/`)
+
+### DAWs
+Logic Pro, Ableton Live
+
+### VST3 Path
+`~/Library/Audio/Plug-Ins/VST3/`
+
 ## Current Task
 
 See `tasks/` folder for numbered implementation tasks.
@@ -92,4 +108,4 @@ See `docs/` folder for detailed specifications:
 - `DELIVERABLE_EN.md` — Full PRD and academic deliverable
 - `DEVELOPMENT_ENVIRONMENT.md` — Setup instructions
 - `DSP_ARCHITECTURE.md` — Signal flow diagrams
-
+- `TESTING.md` — Testing strategy (pluginval, unit tests, listening tests)
