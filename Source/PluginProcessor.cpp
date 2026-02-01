@@ -8,6 +8,20 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Tests/DSPTests.cpp"
+
+//==============================================================================
+// Debug-only test runner: runs unit tests when plugin loads
+#if JUCE_DEBUG
+static struct TestRunner
+{
+    TestRunner()
+    {
+        juce::UnitTestRunner runner;
+        runner.runAllTests();
+    }
+} testRunner;
+#endif
 
 //==============================================================================
 GRAINAudioProcessor::GRAINAudioProcessor()
