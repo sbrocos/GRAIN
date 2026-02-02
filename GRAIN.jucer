@@ -4,8 +4,11 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
-      <GROUP id="{9C5C20A9-6658-22EB-3E2E-F83B1C805EB5}" name="Test">
-        <FILE id="HGLNqB" name="DSPTests.cpp" compile="1" resource="0" file="Source/Tests/DSPTests.cpp"/>
+      <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="DSP">
+        <FILE id="GrainDSPH" name="GrainDSP.h" compile="0" resource="0" file="Source/DSP/GrainDSP.h"/>
+      </GROUP>
+      <GROUP id="{9C5C20A9-6658-22EB-3E2E-F83B1C805EB5}" name="Tests">
+        <FILE id="HGLNqB" name="DSPTests.cpp" compile="0" resource="0" file="Source/Tests/DSPTests.cpp"/>
       </GROUP>
       <FILE id="bG1kmQ" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>

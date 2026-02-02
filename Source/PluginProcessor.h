@@ -53,7 +53,26 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    //==============================================================================
+    // Parameter state
+    juce::AudioProcessorValueTreeState apvts;
+
 private:
+    //==============================================================================
+    // Parameter layout creation
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    // Parameter pointers for fast access
+    std::atomic<float>* driveParam = nullptr;
+    std::atomic<float>* mixParam = nullptr;
+    std::atomic<float>* outputParam = nullptr;
+    std::atomic<float>* bypassParam = nullptr;
+
+    // Smoothed values for click-free parameter changes
+    juce::SmoothedValue<float> driveSmoothed;
+    juce::SmoothedValue<float> mixSmoothed;
+    juce::SmoothedValue<float> gainSmoothed;
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GRAINAudioProcessor)
 };

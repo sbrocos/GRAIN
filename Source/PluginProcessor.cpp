@@ -8,6 +8,7 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "DSP/GrainDSP.h"
 #include "Tests/DSPTests.cpp"
 
 //==============================================================================
@@ -24,6 +25,42 @@ static struct TestRunner
 #endif
 
 //==============================================================================
+juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("drive", 1),
+        "Drive",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
+        0.5f
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("mix", 1),
+        "Mix",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
+        0.2f
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("output", 1),
+        "Output",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f),
+        0.0f
+    ));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("bypass", 1),
+        "Bypass",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 1.0f),
+        0.0f
+    ));
+
+    return { params.begin(), params.end() };
+}
+
+//==============================================================================
 GRAINAudioProcessor::GRAINAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
@@ -33,9 +70,15 @@ GRAINAudioProcessor::GRAINAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+       apvts(*this, nullptr, "Parameters", createParameterLayout())
 #endif
 {
+    // Get parameter pointers for fast access in processBlock
+    driveParam = apvts.getRawParameterValue("drive");
+    mixParam = apvts.getRawParameterValue("mix");
+    outputParam = apvts.getRawParameterValue("output");
+    bypassParam = apvts.getRawParameterValue("bypass");
 }
 
 GRAINAudioProcessor::~GRAINAudioProcessor()
@@ -107,8 +150,19 @@ void GRAINAudioProcessor::changeProgramName (int index, const juce::String& newN
 //==============================================================================
 void GRAINAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    // Initialize smoothed values with 20ms smoothing time
+    driveSmoothed.reset(sampleRate, 0.02);
+    mixSmoothed.reset(sampleRate, 0.02);
+    gainSmoothed.reset(sampleRate, 0.02);
+
+    // Set initial values
+    driveSmoothed.setCurrentAndTargetValue(*driveParam);
+
+    bool bypass = *bypassParam > 0.5f;
+    float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
+    mixSmoothed.setCurrentAndTargetValue(targetMix);
+
+    gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -149,26 +203,47 @@ void GRAINAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+    // Clear any output channels that don't have input data
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
+    // Bypass via mix: when bypassed, mix target = 0 (full dry)
+    bool bypass = *bypassParam > 0.5f;
+    float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
+
+    // Update targets at block start
+    driveSmoothed.setTargetValue(*driveParam);
+    mixSmoothed.setTargetValue(targetMix);
+    gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
+
+    // Process each channel
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        auto* channelData = buffer.getWritePointer(channel);
 
-        // ..do something to the data...
+        // Reset smoothed values to allow per-sample iteration for each channel
+        // Note: We need to skip values for previous channels to stay in sync
+        if (channel > 0)
+        {
+            // For stereo/multichannel: smoothed values advance per-sample
+            // Reset to target to avoid desync between channels
+            driveSmoothed.setCurrentAndTargetValue(driveSmoothed.getTargetValue());
+            mixSmoothed.setCurrentAndTargetValue(mixSmoothed.getTargetValue());
+            gainSmoothed.setCurrentAndTargetValue(gainSmoothed.getTargetValue());
+        }
+
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            // Per-sample smoothing (NOT per-block!)
+            float drive = driveSmoothed.getNextValue();
+            float mix = mixSmoothed.getNextValue();
+            float gain = gainSmoothed.getNextValue();
+
+            float dry = channelData[sample];
+            float wet = GrainDSP::applyWaveshaper(dry, drive);
+            float mixed = GrainDSP::applyMix(dry, wet, mix);
+            channelData[sample] = GrainDSP::applyGain(mixed, gain);
+        }
     }
 }
 
@@ -186,15 +261,20 @@ juce::AudioProcessorEditor* GRAINAudioProcessor::createEditor()
 //==============================================================================
 void GRAINAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    // Save parameter state
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void GRAINAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    // Restore parameter state
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+    if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType()))
+    {
+        apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+    }
 }
 
 //==============================================================================

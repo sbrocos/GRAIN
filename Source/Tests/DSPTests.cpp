@@ -1,5 +1,5 @@
 #include <JuceHeader.h>
-#include <cmath>
+#include "../DSP/GrainDSP.h"
 
 //==============================================================================
 namespace TestConstants
@@ -7,33 +7,6 @@ namespace TestConstants
     constexpr float TOLERANCE = 1e-5f;
     constexpr float CLICK_THRESHOLD = 0.01f;
     constexpr int BUFFER_SIZE = 512;
-}
-
-//==============================================================================
-// Pure DSP functions (to be implemented in Task 002)
-// These declarations will match the actual implementation
-
-namespace GrainDSP
-{
-    inline float applyWaveshaper(float input, float drive)
-    {
-        float gained = input * (1.0f + drive * 3.0f);
-        return std::tanh(gained);
-    }
-
-    inline float applyMix(float dry, float wet, float mix)
-    {
-        return (wet * mix) + (dry * (1.0f - mix));
-    }
-
-    inline float applyGain(float input, float gainLinear)
-    {
-        return input * gainLinear;
-    }
-    
-    // Note: Bypass is handled via mix smoothing in processBlock
-    // When bypass ON → mix target = 0 (produces dry signal)
-    // No separate applyBypass function needed
 }
 
 //==============================================================================
@@ -64,8 +37,8 @@ private:
             float x = 0.5f;
             float drive = 0.5f;
             expectWithinAbsoluteError(
-                GrainDSP::applyWaveshaper(-x, drive), 
-                -GrainDSP::applyWaveshaper(x, drive), 
+                GrainDSP::applyWaveshaper(-x, drive),
+                -GrainDSP::applyWaveshaper(x, drive),
                 TestConstants::TOLERANCE
             );
         }
@@ -142,7 +115,7 @@ private:
     {
         // Note: Bypass is implemented via mix smoothing (bypass ON → mix = 0)
         // These tests verify that mix = 0 produces dry signal (bypass behavior)
-        
+
         beginTest("Bypass behavior: mix = 0 returns dry signal");
         {
             float dry = 0.7f;
@@ -193,12 +166,12 @@ private:
         beginTest("Buffer processing: no state leak between samples");
         {
             float drive = 0.5f;
-            
+
             // Process same value multiple times
             float result1 = GrainDSP::applyWaveshaper(0.5f, drive);
             float result2 = GrainDSP::applyWaveshaper(0.5f, drive);
             float result3 = GrainDSP::applyWaveshaper(0.5f, drive);
-            
+
             expectWithinAbsoluteError(result1, result2, TestConstants::TOLERANCE);
             expectWithinAbsoluteError(result2, result3, TestConstants::TOLERANCE);
         }
@@ -211,7 +184,7 @@ private:
         {
             // Silent input - any click would be clearly audible
             std::vector<float> buffer(TestConstants::BUFFER_SIZE, 0.0f);
-            
+
             float prevSample = 0.0f;
             bool hasClick = false;
 
@@ -220,16 +193,16 @@ private:
             {
                 // Abrupt change at midpoint
                 float drive = (i < TestConstants::BUFFER_SIZE / 2) ? 0.0f : 1.0f;
-                
+
                 float wet = GrainDSP::applyWaveshaper(buffer[i], drive);
                 float output = GrainDSP::applyMix(buffer[i], wet, 0.5f);
-                
+
                 float delta = std::abs(output - prevSample);
                 if (delta > TestConstants::CLICK_THRESHOLD)
                 {
                     hasClick = true;
                 }
-                
+
                 prevSample = output;
             }
 
