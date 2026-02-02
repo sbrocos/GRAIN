@@ -31,11 +31,9 @@ namespace GrainDSP
         return input * gainLinear;
     }
     
-    inline float applyBypass(float dry, float wet, bool bypass, float mix)
-    {
-        float effectiveMix = bypass ? 0.0f : mix;
-        return applyMix(dry, wet, effectiveMix);
-    }
+    // Note: Bypass is handled via mix smoothing in processBlock
+    // When bypass ON → mix target = 0 (produces dry signal)
+    // No separate applyBypass function needed
 }
 
 //==============================================================================
@@ -142,21 +140,25 @@ private:
     //==========================================================================
     void runBypassTests()
     {
-        beginTest("Bypass: output equals input when bypassed");
+        // Note: Bypass is implemented via mix smoothing (bypass ON → mix = 0)
+        // These tests verify that mix = 0 produces dry signal (bypass behavior)
+        
+        beginTest("Bypass behavior: mix = 0 returns dry signal");
         {
             float dry = 0.7f;
             float wet = 0.3f;  // Different from dry
-            float result = GrainDSP::applyBypass(dry, wet, true, 0.5f);
+            float mix = 0.0f; // Simulates bypass ON
+            float result = GrainDSP::applyMix(dry, wet, mix);
             expectWithinAbsoluteError(result, dry, TestConstants::TOLERANCE);
         }
 
-        beginTest("Bypass: normal processing when not bypassed");
+        beginTest("Bypass behavior: full processing when mix > 0");
         {
             float dry = 0.7f;
             float wet = 0.3f;
-            float mix = 0.5f;
-            float result = GrainDSP::applyBypass(dry, wet, false, mix);
-            float expected = GrainDSP::applyMix(dry, wet, mix);
+            float mix = 0.5f; // Normal operation
+            float result = GrainDSP::applyMix(dry, wet, mix);
+            float expected = (wet * mix) + (dry * (1.0f - mix));
             expectWithinAbsoluteError(result, expected, TestConstants::TOLERANCE);
         }
     }

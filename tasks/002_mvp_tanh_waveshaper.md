@@ -38,24 +38,29 @@ namespace GrainDSP
     {
         return input * gainLinear;
     }
-    
-    inline float applyBypass(float dry, float wet, bool bypass, float mix)
-    {
-        float effectiveMix = bypass ? 0.0f : mix;
-        return applyMix(dry, wet, effectiveMix);
-    }
 }
+```
+
+**Note:** Bypass is handled via mix parameter smoothing (bypass ON → mix target = 0). No separate `applyBypass` function needed in the DSP pipeline.
 ```
 
 ### processBlock (uses SmoothedValue + pure functions)
 
+**Important:** Smoothing must be per-sample, not per-block. Calling `getNextValue()` inside the sample loop ensures smooth transitions even with large block sizes (e.g., 2048 samples during offline bounce).
+
+**Bypass handling:** Bypass is implemented via mix smoothing — when bypass is ON, targetMix is set to 0. The SmoothedValue handles the gradual transition, avoiding clicks.
+
 ```cpp
 void processBlock(juce::AudioBuffer<float>& buffer, ...)
 {
-    float drive = driveSmoothed.getNextValue();
-    float mix = mixSmoothed.getNextValue();
-    float gain = gainSmoothed.getNextValue();
-    bool bypass = *bypassParam < 0.5f ? false : true;
+    // Bypass via mix: when bypassed, mix target = 0 (full dry)
+    bool bypass = *bypassParam > 0.5f;
+    float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
+    
+    // Update targets at block start
+    driveSmoothed.setTargetValue(*driveParam);
+    mixSmoothed.setTargetValue(targetMix);  // Handles bypass transition smoothly
+    gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(*outputParam));
 
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
@@ -63,10 +68,15 @@ void processBlock(juce::AudioBuffer<float>& buffer, ...)
         
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
+            // Per-sample smoothing (NOT per-block!)
+            float drive = driveSmoothed.getNextValue();
+            float mix = mixSmoothed.getNextValue();
+            float gain = gainSmoothed.getNextValue();
+            
             float dry = channelData[sample];
             float wet = GrainDSP::applyWaveshaper(dry, drive);
-            channelData[sample] = GrainDSP::applyBypass(dry, wet, bypass, mix);
-            channelData[sample] = GrainDSP::applyGain(channelData[sample], gain);
+            float mixed = GrainDSP::applyMix(dry, wet, mix);
+            channelData[sample] = GrainDSP::applyGain(mixed, gain);
         }
     }
 }
@@ -233,11 +243,30 @@ pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 2. **Reusable** — Same math in processBlock and tests
 3. **Clear** — Separation of concerns (math vs. smoothing)
 
-### Why Bypass as Parameter (not host bypass)?
+### Why Bypass via Mix Smoothing?
 
-1. **Smooth transition** — SmoothedValue prevents clicks
-2. **Testable** — Can unit test bypass behavior
-3. **Consistent** — Same behavior in all DAWs
+1. **Smooth transition** — SmoothedValue handles fade automatically
+2. **No clicks** — Gradual crossfade between wet and dry
+3. **Zero extra code** — Reuses existing mix smoothing infrastructure
+4. **Testable** — mix = 0 behavior already covered by mix tests
+
+### Order of Operations: Bypass + Gain
+
+```
+dry → waveshaper → mix (bypass here) → gain → output
+```
+
+**Decision:** Output gain applies AFTER bypass (always active).
+
+| State | Signal path |
+|-------|-------------|
+| Bypass OFF | `dry → wet → mix blend → gain` |
+| Bypass ON | `dry → wet → dry (mix=0) → gain` |
+
+**Rationale:**
+- Avoids level jumps when toggling bypass (GRAIN's "safe" philosophy)
+- Output gain is a utility (level matching), not part of the effect
+- For true A/B comparison, user can set mix = 0% AND gain = 0dB
 
 ### dB for Output Gain
 
