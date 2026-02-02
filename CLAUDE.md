@@ -23,7 +23,9 @@ GRAIN/
 ├── docs/                    # Project documentation
 │   ├── DELIVERABLE_EN.md    # PRD / Academic deliverable
 │   ├── DEVELOPMENT_ENVIRONMENT.md
-│   └── DSP_ARCHITECTURE.md
+│   ├── DSP_ARCHITECTURE.md
+│   ├── TESTING.md           # Testing strategy (pluginval, unit, listening)
+│   └── GRAIN_Code_Architecture.md
 ├── tasks/                   # Implementation tasks (numbered)
 ├── Source/
 │   ├── DSP/
@@ -81,13 +83,15 @@ namespace GrainDSP
 3. **Safety:** No auto-gain, no hidden behavior
 4. **Simplicity:** Minimal UI, no technical decisions for user
 
-## Testing Philosophy
+## Testing Strategy
 
-| What | How |
-|------|-----|
-| DSP logic (tanh, mix, gain) | Unit tests (pure functions) |
-| Parameter smoothing | Discontinuity test + listening test |
-| Plugin stability | pluginval |
+### Three-Layer Approach
+
+| Layer | Tool | What it catches |
+|-------|------|-----------------|
+| Automated validation | pluginval | Crashes, memory leaks, VST3 compliance |
+| Unit tests | JUCE UnitTest | DSP math correctness |
+| Listening tests | Manual | Sonic quality, transparency, artifacts |
 
 ### Test Constants
 ```cpp
@@ -99,7 +103,18 @@ namespace TestConstants
 }
 ```
 
-### Running Tests
+### pluginval
+
+```bash
+# Basic validation (during development)
+pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+
+# Strict validation (before release)
+pluginval --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+```
+
+### Unit Tests
+
 Tests run automatically when plugin loads in Debug mode:
 ```bash
 # Build and run Standalone (tests execute on load)
@@ -107,6 +122,31 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - Standalone Plugin" -configuration Debug build
 
 ./Builds/MacOSX/build/Debug/GRAIN.app/Contents/MacOS/GRAIN
+```
+
+### Listening Tests Checklist
+
+| Test | Pass criteria |
+|------|---------------|
+| Transparency (10-20% wet) | No obvious distortion, transients/tone unchanged |
+| Bypass reveal | Reduced density when bypassed = effect working |
+| Stability | No wobble/flutter on sustained pads |
+| Level | No jump on bypass toggle |
+| Smoothing | No clicks when automating Drive 0→100% |
+
+### Development Workflow
+
+```bash
+# 1. Make changes
+# 2. Build
+xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
+  -scheme "GRAIN - VST3" -configuration Debug build
+
+# 3. Run pluginval
+pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+
+# 4. If pass → test in DAW
+# 5. If pass → commit
 ```
 
 ## Build Commands
