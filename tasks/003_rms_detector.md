@@ -29,12 +29,15 @@ Input → [RMS Detector] → envelope value → (used by Dynamic Bias in Task 00
 ### Time Constants
 
 ```cpp
-// Attack: how fast the envelope rises
-constexpr float RMS_ATTACK_MS = 100.0f;   // Slow attack
-
-// Release: how fast the envelope falls  
-constexpr float RMS_RELEASE_MS = 300.0f;  // Even slower release
+// En GrainDSP.h como constexpr (mejor mantenibilidad)
+namespace GrainDSP
+{
+    constexpr float RMS_ATTACK_MS = 100.0f;   // Slow attack
+    constexpr float RMS_RELEASE_MS = 300.0f;  // Even slower release
+}
 ```
+
+**Decisión:** Constantes como `constexpr` en el header para mejor mantenibilidad.
 
 These values are intentionally long to avoid transient-chasing.
 
@@ -94,33 +97,45 @@ namespace GrainDSP
 ```cpp
 // In PluginProcessor.h
 GrainDSP::RMSDetector rmsDetector;
+float currentEnvelope = 0.0f;  // Guardar para uso futuro (Task 004)
 
-// In prepareToPlay()
-rmsDetector.prepare(sampleRate, 100.0f, 300.0f);
+// In prepareToPlay() - llamar prepare() Y reset()
+rmsDetector.prepare(static_cast<float>(sampleRate),
+                    GrainDSP::RMS_ATTACK_MS,
+                    GrainDSP::RMS_RELEASE_MS);
+rmsDetector.reset();  // Limpiar historial del filtro
 
-// In processBlock() - linked stereo (use L+R sum or max)
-float rmsLeft = rmsDetector.process(leftSample);
-// Note: For linked stereo, use same detector for both channels
-// The envelope value will be used by Dynamic Bias (Task 004)
+// In processBlock() - UNA VEZ por sample-frame, no por canal
+for (int sample = 0; sample < numSamples; ++sample)
+{
+    float L = leftChannel[sample];
+    float R = rightChannel[sample];
+    float mono = (L + R) * 0.5f;
+    currentEnvelope = rmsDetector.process(mono);  // Una vez por frame
+
+    // ... resto del procesamiento por canal
+}
 ```
+
+**Decisiones:**
+- Guardar envelope en variable miembro para preparar Task 004
+- Llamar `prepare()` Y `reset()` en prepareToPlay() (prepare configura coeficientes, reset limpia historial)
+- Procesar detector una vez por sample-frame, no por canal
+- **Integrar ya en processBlock** aunque el envelope no se use todavía (evita sorpresas de integración en Task 004)
 
 ---
 
 ## Stereo Handling
 
-For GRAIN's "linked stereo" design (from PRD), use a single RMS detector fed by the sum or max of both channels:
+For GRAIN's "linked stereo" design (from PRD), use a single RMS detector fed by the sum of both channels:
 
 ```cpp
-// Option A: Sum (more accurate RMS)
+// Sum (more accurate RMS) - DECISIÓN FINAL
 float monoInput = (leftSample + rightSample) * 0.5f;
 float envelope = rmsDetector.process(monoInput);
-
-// Option B: Max (more responsive to panned transients)
-float maxInput = std::max(std::abs(leftSample), std::abs(rightSample));
-float envelope = rmsDetector.process(maxInput);
 ```
 
-**Recommendation:** Option A (sum) for smoother, more predictable behavior.
+**Decisión:** Usar suma `(L + R) * 0.5f` para un comportamiento más suave y predecible.
 
 ---
 
@@ -160,23 +175,47 @@ void runRMSDetectorTests()
         expectWithinAbsoluteError(result, 0.0f, TestConstants::TOLERANCE);
     }
 
-    beginTest("RMS Detector: constant input converges to that value");
+    beginTest("RMS Detector: DC input converges to that value");
     {
         GrainDSP::RMSDetector detector;
         detector.prepare(44100.0f, 100.0f, 300.0f);
-        
+
         float constantInput = 0.5f;
         float result = 0.0f;
-        
+
         // Process enough samples to converge (10x attack time)
         int samplesToConverge = static_cast<int>(44100.0f * 1.0f);  // 1 second
         for (int i = 0; i < samplesToConverge; ++i)
         {
             result = detector.process(constantInput);
         }
-        
+
         // Should converge to input value (RMS of constant = constant)
         expectWithinAbsoluteError(result, constantInput, 0.01f);
+    }
+
+    beginTest("RMS Detector: sine wave converges to RMS value");
+    {
+        GrainDSP::RMSDetector detector;
+        detector.prepare(44100.0f, 100.0f, 300.0f);
+
+        float amplitude = 1.0f;
+        float frequency = 440.0f;
+        float sampleRate = 44100.0f;
+        float result = 0.0f;
+
+        // Process enough samples to converge (1 second)
+        int samplesToConverge = static_cast<int>(sampleRate * 1.0f);
+        for (int i = 0; i < samplesToConverge; ++i)
+        {
+            float phase = 2.0f * 3.14159265f * frequency * i / sampleRate;
+            float sample = amplitude * std::sin(phase);
+            result = detector.process(sample);
+        }
+
+        // RMS of sine wave = amplitude / sqrt(2) ≈ 0.707
+        float expectedRMS = amplitude / std::sqrt(2.0f);
+        expectWithinAbsoluteError(result, expectedRMS, 0.01f);
     }
 
     beginTest("RMS Detector: envelope is always non-negative");
