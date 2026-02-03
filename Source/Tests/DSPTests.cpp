@@ -1,13 +1,14 @@
-#include <JuceHeader.h>
 #include "../DSP/GrainDSP.h"
+
+#include <JuceHeader.h>
 
 //==============================================================================
 namespace TestConstants
 {
-    constexpr float TOLERANCE = 1e-5f;
-    constexpr float CLICK_THRESHOLD = 0.01f;
-    constexpr int BUFFER_SIZE = 512;
-}
+constexpr float TOLERANCE = 1e-5f;
+constexpr float CLICK_THRESHOLD = 0.01f;
+constexpr int BUFFER_SIZE = 512;
+}  // namespace TestConstants
 
 //==============================================================================
 class GrainDSPTests : public juce::UnitTest
@@ -36,11 +37,8 @@ private:
         {
             float x = 0.5f;
             float drive = 0.5f;
-            expectWithinAbsoluteError(
-                GrainDSP::applyWaveshaper(-x, drive),
-                -GrainDSP::applyWaveshaper(x, drive),
-                TestConstants::TOLERANCE
-            );
+            expectWithinAbsoluteError(GrainDSP::applyWaveshaper(-x, drive), -GrainDSP::applyWaveshaper(x, drive),
+                                      TestConstants::TOLERANCE);
         }
 
         beginTest("Waveshaper: bounded output");
@@ -120,7 +118,7 @@ private:
         {
             float dry = 0.7f;
             float wet = 0.3f;  // Different from dry
-            float mix = 0.0f; // Simulates bypass ON
+            float mix = 0.0f;  // Simulates bypass ON
             float result = GrainDSP::applyMix(dry, wet, mix);
             expectWithinAbsoluteError(result, dry, TestConstants::TOLERANCE);
         }
@@ -129,7 +127,7 @@ private:
         {
             float dry = 0.7f;
             float wet = 0.3f;
-            float mix = 0.5f; // Normal operation
+            float mix = 0.5f;  // Normal operation
             float result = GrainDSP::applyMix(dry, wet, mix);
             float expected = (wet * mix) + (dry * (1.0f - mix));
             expectWithinAbsoluteError(result, expected, TestConstants::TOLERANCE);

@@ -21,3 +21,9 @@ DerivedData/
 
 # Claude Code
 .claude/
+
+# Generado por bear/cmake (rutas absolutas, específico de máquina)
+compile_commands.json
+
+# clangd cache
+.cache/

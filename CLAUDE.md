@@ -134,11 +134,26 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | Level | No jump on bypass toggle |
 | Smoothing | No clicks when automating Drive 0→100% |
 
+## Code Style
+
+This project uses clang-format and clang-tidy. Key conventions:
+
+- **Indentation:** 4 spaces, no tabs
+- **Braces:** Allman style (opening brace on new line)
+- **Line length:** 120 characters max
+- **Naming:** 
+  - Classes: `CamelCase` (e.g., `RMSDetector`)
+  - Methods/variables: `camelBack` (e.g., `processBlock`, `rmsLevel`)
+  - Constants: `kCamelCase` or `UPPER_CASE` for macros
+- **Pointers:** Left-aligned (`float* ptr`, not `float *ptr`)
+
+Run `./scripts/format.sh fix` before committing.
+
 ### Development Workflow
 
 ```bash
 # 1. Make changes
-# 2. Build
+2. Build
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - VST3" -configuration Debug build
 

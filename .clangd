@@ -1,0 +1,22 @@
+CompileFlags:
+  Add:
+    - "-I/Users/sbrocos/JUCE/modules"
+    - "-std=c++17"
+    - "-DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1"
+    - "-DDEBUG=1"
+    - "-DJUCER_XCODE_MAC_F6D2F4CF=1"
+  Remove:
+    - "-index-store-path"
+    - "-index-store-path*"
+    - "-index-unit-output-path"
+    - "-index-unit-output-path*"
+    - "-ivfsstatcache"
+    - "-ivfsstatcache*"
+    - "-fno-color-diagnostics"
+
+Diagnostics:
+  ClangTidy:
+    Remove:
+      - readability-uppercase-literal-suffix
+      - misc-non-private-member-variables-in-classes
+      - cppcoreguidelines-non-private-member-variables-in-classes

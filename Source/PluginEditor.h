@@ -8,20 +8,21 @@
 
 #pragma once
 
-#include <JuceHeader.h>
 #include "PluginProcessor.h"
+
+#include <JuceHeader.h>
 
 //==============================================================================
 /**
-*/
-class GRAINAudioProcessorEditor  : public juce::AudioProcessorEditor
+ */
+class GRAINAudioProcessorEditor : public juce::AudioProcessorEditor
 {
 public:
-    GRAINAudioProcessorEditor (GRAINAudioProcessor&);
+    GRAINAudioProcessorEditor(GRAINAudioProcessor&);
     ~GRAINAudioProcessorEditor() override;
 
     //==============================================================================
-    void paint (juce::Graphics&) override;
+    void paint(juce::Graphics& g) override;
     void resized() override;
 
 private:
@@ -29,5 +30,5 @@ private:
     // access the processor object that created it.
     GRAINAudioProcessor& audioProcessor;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GRAINAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessorEditor)
 };
