@@ -144,6 +144,11 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     mixSmoothed.setCurrentAndTargetValue(targetMix);
 
     gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
+
+    // Initialize RMS detector (Task 003)
+    rmsDetector.prepare(static_cast<float>(sampleRate), GrainDSP::RMS_ATTACK_MS, GrainDSP::RMS_RELEASE_MS);
+    rmsDetector.reset();
+    currentEnvelope = 0.0f;
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -204,33 +209,44 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     mixSmoothed.setTargetValue(targetMix);
     gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
-    // Process each channel
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    // Get channel pointers
+    auto numSamples = buffer.getNumSamples();
+    float* leftChannel = totalNumInputChannels > 0 ? buffer.getWritePointer(0) : nullptr;
+    float* rightChannel = totalNumInputChannels > 1 ? buffer.getWritePointer(1) : nullptr;
+
+    // Process sample-by-sample (RMS detector needs to run once per frame)
+    for (int sample = 0; sample < numSamples; ++sample)
     {
-        auto* channelData = buffer.getWritePointer(channel);
+        // Per-sample smoothing (NOT per-block!)
+        float drive = driveSmoothed.getNextValue();
+        float mix = mixSmoothed.getNextValue();
+        float gain = gainSmoothed.getNextValue();
 
-        // Reset smoothed values to allow per-sample iteration for each channel
-        // Note: We need to skip values for previous channels to stay in sync
-        if (channel > 0)
+        // Get samples from both channels
+        float leftSample = leftChannel != nullptr ? leftChannel[sample] : 0.0f;
+        float rightSample = rightChannel != nullptr ? rightChannel[sample] : leftSample;
+
+        // RMS detector: process once per sample-frame with mono sum (linked stereo)
+        float monoInput = (leftSample + rightSample) * 0.5f;
+        currentEnvelope = rmsDetector.process(monoInput);
+        // Note: currentEnvelope will be used by Dynamic Bias (Task 004)
+
+        // Process left channel
+        if (leftChannel != nullptr)
         {
-            // For stereo/multichannel: smoothed values advance per-sample
-            // Reset to target to avoid desync between channels
-            driveSmoothed.setCurrentAndTargetValue(driveSmoothed.getTargetValue());
-            mixSmoothed.setCurrentAndTargetValue(mixSmoothed.getTargetValue());
-            gainSmoothed.setCurrentAndTargetValue(gainSmoothed.getTargetValue());
-        }
-
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-        {
-            // Per-sample smoothing (NOT per-block!)
-            float drive = driveSmoothed.getNextValue();
-            float mix = mixSmoothed.getNextValue();
-            float gain = gainSmoothed.getNextValue();
-
-            float dry = channelData[sample];
+            float dry = leftSample;
             float wet = GrainDSP::applyWaveshaper(dry, drive);
             float mixed = GrainDSP::applyMix(dry, wet, mix);
-            channelData[sample] = GrainDSP::applyGain(mixed, gain);
+            leftChannel[sample] = GrainDSP::applyGain(mixed, gain);
+        }
+
+        // Process right channel
+        if (rightChannel != nullptr)
+        {
+            float dry = rightSample;
+            float wet = GrainDSP::applyWaveshaper(dry, drive);
+            float mixed = GrainDSP::applyMix(dry, wet, mix);
+            rightChannel[sample] = GrainDSP::applyGain(mixed, gain);
         }
     }
 }
