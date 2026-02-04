@@ -1,10 +1,13 @@
 CompileFlags:
   Add:
     - "-I/Users/sbrocos/JUCE/modules"
+    - "-I/Users/sbrocos/JUCE/modules/juce_audio_processors_headless/format_types/VST3_SDK"
     - "-std=c++17"
     - "-DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1"
     - "-DDEBUG=1"
     - "-DJUCER_XCODE_MAC_F6D2F4CF=1"
+    - '-DJucePlugin_Name="GRAIN"'
+    - "-DJucePlugin_Build_VST3=1"
   Remove:
     - "-index-store-path"
     - "-index-store-path*"
@@ -17,6 +20,13 @@ CompileFlags:
 Diagnostics:
   ClangTidy:
     Remove:
+      # Crashes with LLVM 21.x + JUCE
+      - bugprone-*
+      - cert-*
+      # Noisy for JUCE code
       - readability-uppercase-literal-suffix
       - misc-non-private-member-variables-in-classes
       - cppcoreguidelines-non-private-member-variables-in-classes
+      - misc-include-cleaner
+
+  UnusedIncludes: Strict

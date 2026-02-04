@@ -1,12 +1,17 @@
 # GRAIN - clang-tidy configuration
 # Focused on audio/DSP code quality and real-time safety
+#
+# NOTE: Some checks are disabled due to crashes in clang-tidy 21.x
+# with JUCE headers. See: https://github.com/llvm/llvm-project/issues
+# Consider using LLVM 18 or 19 for more stable analysis.
 
 ---
 # Enable specific check categories
+# Disabled problematic categories that crash with JUCE + LLVM 21:
+# - bugprone-* (crashes on juce_Ranges.h)
+# - cert-* (crashes on juce_Ranges.h)
 Checks: >
   -*,
-  bugprone-*,
-  cert-*,
   clang-analyzer-*,
   cppcoreguidelines-*,
   misc-*,
@@ -14,25 +19,18 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
-  -bugprone-easily-swappable-parameters,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-special-member-functions,
-  -hicpp-special-member-functions,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
   -misc-non-private-member-variables-in-classes,
   -modernize-use-trailing-return-type,
   -readability-magic-numbers,
   -readability-identifier-length,
   -readability-uppercase-literal-suffix,
-
-# Warning as errors for critical issues
-WarningsAsErrors: >
-  bugprone-use-after-move,
-  bugprone-dangling-handle,
-  cert-err52-cpp,
-  cert-err60-cpp,
+  -portability-avoid-pragma-once,
 
 # Header filter - only check our source files
 HeaderFilterRegex: 'Source/.*'
@@ -58,14 +56,33 @@ CheckOptions:
     value: camelBack
   - key: readability-identifier-naming.PrivateMemberSuffix
     value: ''
-  - key: readability-identifier-naming.ConstantCase
-    value: UPPER_CASE
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
   - key: readability-identifier-naming.NamespaceCase
     value: CamelCase
+
+# Constantes con prefijo 'k' estilo Google/Apple
+  - key: readability-identifier-naming.ConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.ConstantPrefix
+    value: 'k'
   - key: readability-identifier-naming.GlobalConstantCase
     value: CamelCase
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: 'k'
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: CamelCase
+  - key: readability-identifier-naming.ConstexprVariablePrefix
+    value: 'k'
+  - key: readability-identifier-naming.StaticConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.StaticConstantPrefix
+    value: 'k'
+  - key: readability-identifier-naming.ClassConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.ClassConstantPrefix
+    value: 'k'
+
 
   # Function complexity
   - key: readability-function-cognitive-complexity.Threshold
@@ -94,17 +111,5 @@ CheckOptions:
     value: 'NULL'
   - key: modernize-pass-by-value.IncludeStyle
     value: llvm
-
-  # Bugprone
-  - key: bugprone-argument-comment.StrictMode
-    value: false
-  - key: bugprone-assert-side-effect.AssertMacros
-    value: 'jassert;jassertfalse'
-  - key: bugprone-suspicious-string-compare.WarnOnLogicalNotComparison
-    value: true
-
-  # Misc
-  - key: misc-throw-by-value-catch-by-reference.CheckThrowTemporaries
-    value: true
 
 ...
