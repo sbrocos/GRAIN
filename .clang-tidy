@@ -25,7 +25,9 @@ Checks: >
   -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-special-member-functions,
   -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-include-cleaner,
   -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
   -modernize-use-trailing-return-type,
   -readability-magic-numbers,
   -readability-identifier-length,
@@ -82,6 +84,11 @@ CheckOptions:
     value: CamelCase
   - key: readability-identifier-naming.ClassConstantPrefix
     value: 'k'
+  # Local const variables: keep camelBack (no 'k' prefix)
+  - key: readability-identifier-naming.LocalConstantCase
+    value: camelBack
+  - key: readability-identifier-naming.LocalConstantPrefix
+    value: ''
 
 
   # Function complexity
