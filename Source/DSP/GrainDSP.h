@@ -15,8 +15,8 @@ namespace GrainDSP
 {
 //==============================================================================
 // RMS Detector constants
-constexpr float RMS_ATTACK_MS = 100.0f;   // Slow attack (ignores transients)
-constexpr float RMS_RELEASE_MS = 300.0f;  // Even slower release (stability)
+constexpr float kRmsAttackMs = 100.0f;   // Slow attack (ignores transients)
+constexpr float kRmsReleaseMs = 300.0f;  // Even slower release (stability)
 
 //==============================================================================
 /**
@@ -66,13 +66,13 @@ struct RMSDetector
      */
     float process(float input)
     {
-        float inputSquared = input * input;
+        const float inputSquared = input * input;
 
         // Asymmetric ballistics: different attack/release
-        float coeff = (inputSquared > envelope) ? attackCoeff : releaseCoeff;
+        const float coeff = (inputSquared > envelope) ? attackCoeff : releaseCoeff;
 
         // One-pole smoothing filter
-        envelope = envelope * coeff + inputSquared * (1.0f - coeff);
+        envelope = (envelope * coeff) + (inputSquared * (1.0f - coeff));
 
         // Return RMS (square root of mean square)
         return std::sqrt(envelope);
@@ -87,7 +87,7 @@ struct RMSDetector
  */
 inline float applyWaveshaper(float input, float drive)
 {
-    float gained = input * (1.0f + drive * 3.0f);  // 1x to 4x gain
+    const float gained = input * (1.0f + drive * 3.0f);  // 1x to 4x gain
     return std::tanh(gained);
 }
 

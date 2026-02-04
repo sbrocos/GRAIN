@@ -139,14 +139,14 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     // Set initial values
     driveSmoothed.setCurrentAndTargetValue(*driveParam);
 
-    bool bypass = *bypassParam > 0.5f;
-    float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
+    const bool bypass = *bypassParam > 0.5f;
+    const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
     mixSmoothed.setCurrentAndTargetValue(targetMix);
 
     gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
     // Initialize RMS detector (Task 003)
-    rmsDetector.prepare(static_cast<float>(sampleRate), GrainDSP::RMS_ATTACK_MS, GrainDSP::RMS_RELEASE_MS);
+    rmsDetector.prepare(static_cast<float>(sampleRate), GrainDSP::kRmsAttackMs, GrainDSP::kRmsReleaseMs);
     rmsDetector.reset();
     currentEnvelope = 0.0f;
 }
@@ -190,7 +190,7 @@ bool GRAINAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) con
 void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ignoreUnused(midiMessages);
-    juce::ScopedNoDenormals noDenormals;
+    const juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
@@ -201,8 +201,8 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     }
 
     // Bypass via mix: when bypassed, mix target = 0 (full dry)
-    bool bypass = *bypassParam > 0.5f;
-    float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
+    const bool bypass = *bypassParam > 0.5f;
+    const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
     // Update targets at block start
     driveSmoothed.setTargetValue(*driveParam);
@@ -218,34 +218,34 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     for (int sample = 0; sample < numSamples; ++sample)
     {
         // Per-sample smoothing (NOT per-block!)
-        float drive = driveSmoothed.getNextValue();
-        float mix = mixSmoothed.getNextValue();
-        float gain = gainSmoothed.getNextValue();
+        const float drive = driveSmoothed.getNextValue();
+        const float mix = mixSmoothed.getNextValue();
+        const float gain = gainSmoothed.getNextValue();
 
         // Get samples from both channels
-        float leftSample = leftChannel != nullptr ? leftChannel[sample] : 0.0f;
-        float rightSample = rightChannel != nullptr ? rightChannel[sample] : leftSample;
+        float const leftSample = leftChannel != nullptr ? leftChannel[sample] : 0.0f;
+        float const rightSample = rightChannel != nullptr ? rightChannel[sample] : leftSample;
 
         // RMS detector: process once per sample-frame with mono sum (linked stereo)
-        float monoInput = (leftSample + rightSample) * 0.5f;
+        const float monoInput = (leftSample + rightSample) * 0.5f;
         currentEnvelope = rmsDetector.process(monoInput);
         // Note: currentEnvelope will be used by Dynamic Bias (Task 004)
 
         // Process left channel
         if (leftChannel != nullptr)
         {
-            float dry = leftSample;
-            float wet = GrainDSP::applyWaveshaper(dry, drive);
-            float mixed = GrainDSP::applyMix(dry, wet, mix);
+            const float dry = leftSample;
+            const float wet = GrainDSP::applyWaveshaper(dry, drive);
+            const float mixed = GrainDSP::applyMix(dry, wet, mix);
             leftChannel[sample] = GrainDSP::applyGain(mixed, gain);
         }
 
         // Process right channel
         if (rightChannel != nullptr)
         {
-            float dry = rightSample;
-            float wet = GrainDSP::applyWaveshaper(dry, drive);
-            float mixed = GrainDSP::applyMix(dry, wet, mix);
+            const float dry = rightSample;
+            const float wet = GrainDSP::applyWaveshaper(dry, drive);
+            const float mixed = GrainDSP::applyMix(dry, wet, mix);
             rightChannel[sample] = GrainDSP::applyGain(mixed, gain);
         }
     }
@@ -267,7 +267,7 @@ void GRAINAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
     // Save parameter state
     auto state = apvts.copyState();
-    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    const std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
 
