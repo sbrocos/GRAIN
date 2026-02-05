@@ -106,11 +106,14 @@ namespace TestConstants
 ### pluginval
 
 ```bash
+# Use app bundle path (symlink in /usr/local/bin may not work)
+PLUGINVAL=/Applications/pluginval.app/Contents/MacOS/pluginval
+
 # Basic validation (during development)
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+$PLUGINVAL --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 # Strict validation (before release)
-pluginval --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+$PLUGINVAL --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 ```
 
 ### Unit Tests
@@ -133,6 +136,18 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | Stability | No wobble/flutter on sustained pads |
 | Level | No jump on bypass toggle |
 | Smoothing | No clicks when automating Drive 0→100% |
+
+## Branch Naming
+
+Use task file numbers for branch names, not YouTrack ticket IDs:
+
+```
+feature/<task-number>-<short-description>
+```
+
+**Examples:**
+- `feature/003-rms-detector` (from `tasks/003_rms_detector.md`)
+- `feature/004-dynamic-bias` (from `tasks/004_dynamic_bias.md`)
 
 ## Code Style
 
@@ -181,7 +196,8 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 ## Validation
 
 ```bash
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# Use app bundle path (symlink in /usr/local/bin may not work)
+/Applications/pluginval.app/Contents/MacOS/pluginval --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 ```
 
 ## Current Status

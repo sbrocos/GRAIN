@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include "DSP/GrainDSP.h"
+
 #include <JuceHeader.h>
 
 //==============================================================================
@@ -72,6 +74,10 @@ private:
     juce::SmoothedValue<float> driveSmoothed;
     juce::SmoothedValue<float> mixSmoothed;
     juce::SmoothedValue<float> gainSmoothed;
+
+    // RMS detector for Dynamic Bias (Task 003)
+    GrainDSP::RMSDetector rmsDetector;
+    float currentEnvelope = 0.0f;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)

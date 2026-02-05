@@ -18,7 +18,7 @@
 class GRAINAudioProcessorEditor : public juce::AudioProcessorEditor
 {
 public:
-    GRAINAudioProcessorEditor(GRAINAudioProcessor&);
+    GRAINAudioProcessorEditor(GRAINAudioProcessor& /*p*/);
     ~GRAINAudioProcessorEditor() override;
 
     //==============================================================================
