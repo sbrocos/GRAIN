@@ -48,6 +48,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createP
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("warmth", 1), "Warmth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("focus", 1), "Focus",
+                                                                  juce::StringArray{"Low", "Mid", "High"}, 1));
+
     return {params.begin(), params.end()};
 }
 
@@ -68,6 +71,7 @@ GRAINAudioProcessor::GRAINAudioProcessor()
     , outputParam(apvts.getRawParameterValue("output"))
     , bypassParam(apvts.getRawParameterValue("bypass"))
     , warmthParam(apvts.getRawParameterValue("warmth"))
+    , focusParam(apvts.getRawParameterValue("focus"))
 #endif
 {
 }
@@ -162,6 +166,11 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     dcBlockerLeft.reset();
     dcBlockerRight.prepare(static_cast<float>(sampleRate));
     dcBlockerRight.reset();
+
+    // Initialize Spectral Focus (Task 006)
+    lastFocusMode = GrainDSP::FocusMode::Mid;
+    spectralFocus.prepare(static_cast<float>(sampleRate), lastFocusMode);
+    spectralFocus.reset();
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -217,6 +226,15 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     const bool bypass = *bypassParam > 0.5f;
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
+    // Check if focus mode changed (Task 006)
+    const auto currentFocus = static_cast<GrainDSP::FocusMode>(static_cast<int>(*focusParam));
+    if (currentFocus != lastFocusMode)
+    {
+        spectralFocus.prepare(static_cast<float>(getSampleRate()), currentFocus);
+        lastFocusMode = currentFocus;
+        // Note: don't reset filter state to avoid click on mode change
+    }
+
     // Update targets at block start
     driveSmoothed.setTargetValue(*driveParam);
     warmthSmoothed.setTargetValue(*warmthParam);
@@ -248,14 +266,14 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         // Process each channel through the full DSP chain
         if (leftChannel != nullptr)
         {
-            leftChannel[sample] =
-                GrainDSP::processSample(leftSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerLeft);
+            leftChannel[sample] = GrainDSP::processSample(leftSample, currentEnvelope, drive, warmth, mix, gain,
+                                                          dcBlockerLeft, spectralFocus, 0);
         }
 
         if (rightChannel != nullptr)
         {
-            rightChannel[sample] =
-                GrainDSP::processSample(rightSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerRight);
+            rightChannel[sample] = GrainDSP::processSample(rightSample, currentEnvelope, drive, warmth, mix, gain,
+                                                           dcBlockerRight, spectralFocus, 1);
         }
     }
 }

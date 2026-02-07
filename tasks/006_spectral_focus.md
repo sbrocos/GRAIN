@@ -51,9 +51,9 @@ Each mode uses a pair of shelf filters (low shelf + high shelf) to create a gent
 
 | Mode | Low Shelf (200 Hz) | High Shelf (4 kHz) | Net Effect |
 |------|--------------------|--------------------|------------|
-| **Low** | +2 dB | -2 dB | Emphasis below 200 Hz |
-| **Mid** | -1 dB | -1 dB | Emphasis 200 Hz – 4 kHz |
-| **High** | -2 dB | +2 dB | Emphasis above 4 kHz |
+| **Low** | +3 dB | -3 dB | Emphasis below 200 Hz |
+| **Mid** | -1.5 dB | -1.5 dB | Emphasis 200 Hz – 4 kHz |
+| **High** | -3 dB | +3 dB | Emphasis above 4 kHz |
 
 **Note:** These are very gentle gains. The focus is subtle spectral bias, not dramatic EQ.
 
@@ -69,7 +69,7 @@ namespace GrainDSP
         // Focus: shelf filter parameters
         constexpr float kFocusLowShelfFreq = 200.0f;    // Hz
         constexpr float kFocusHighShelfFreq = 4000.0f;   // Hz
-        constexpr float kFocusShelfGainDb = 2.0f;        // dB (max boost/cut)
+        constexpr float kFocusShelfGainDb = 3.0f;        // dB (max boost/cut)
         constexpr float kFocusShelfQ = 0.707f;           // Butterworth Q
     }
 
@@ -120,18 +120,18 @@ namespace GrainDSP
             switch (mode)
             {
                 case FocusMode::Low:
-                    lowGainDb = Constants::kFocusShelfGainDb;    // +2 dB
-                    highGainDb = -Constants::kFocusShelfGainDb;  // -2 dB
+                    lowGainDb = Constants::kFocusShelfGainDb;    // +3 dB
+                    highGainDb = -Constants::kFocusShelfGainDb;  // -3 dB
                     break;
                     
                 case FocusMode::Mid:
-                    lowGainDb = -Constants::kFocusShelfGainDb * 0.5f;  // -1 dB
-                    highGainDb = -Constants::kFocusShelfGainDb * 0.5f; // -1 dB
+                    lowGainDb = -Constants::kFocusShelfGainDb * 0.5f;  // -1.5 dB
+                    highGainDb = -Constants::kFocusShelfGainDb * 0.5f; // -1.5 dB
                     break;
                     
                 case FocusMode::High:
-                    lowGainDb = -Constants::kFocusShelfGainDb;   // -2 dB
-                    highGainDb = Constants::kFocusShelfGainDb;   // +2 dB
+                    lowGainDb = -Constants::kFocusShelfGainDb;   // -3 dB
+                    highGainDb = Constants::kFocusShelfGainDb;   // +3 dB
                     break;
             }
             
@@ -244,7 +244,7 @@ juce::dsp::IIR::Filter<float> highShelf;
 
 // In prepare():
 auto lowCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowShelf(
-    sampleRate, 200.0f, 0.707f, juce::Decibels::decibelsToGain(2.0f));
+    sampleRate, 200.0f, 0.707f, juce::Decibels::decibelsToGain(3.0f));
 lowShelf.coefficients = lowCoeffs;
 ```
 
@@ -638,12 +638,13 @@ pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 ### Shelf Filter Gains
 
-The ±2dB gains are intentionally mild:
+The ±3dB gains are moderate:
 
 | Gain | Perceived effect |
 |------|-----------------|
 | ±1 dB | Barely perceptible |
-| **±2 dB** | Subtle but audible |
+| ±2 dB | Subtle but audible |
+| **±3 dB** | Clearly audible, still musical |
 | ±4 dB | Noticeable, too strong for GRAIN |
 
 May need adjustment after listening tests. Constants are in `GrainDSP::Constants`.

@@ -70,6 +70,7 @@ private:
     std::atomic<float>* outputParam = nullptr;
     std::atomic<float>* bypassParam = nullptr;
     std::atomic<float>* warmthParam = nullptr;
+    std::atomic<float>* focusParam = nullptr;
 
     // Smoothed values for click-free parameter changes
     juce::SmoothedValue<float> driveSmoothed;
@@ -84,6 +85,10 @@ private:
     // DC blockers for removing bias-induced DC offset (Task 004)
     GrainDSP::DCBlocker dcBlockerLeft;
     GrainDSP::DCBlocker dcBlockerRight;
+
+    // Spectral Focus filters (Task 006)
+    GrainDSP::SpectralFocus spectralFocus;
+    GrainDSP::FocusMode lastFocusMode = GrainDSP::FocusMode::Mid;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)
