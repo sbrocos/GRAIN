@@ -9,7 +9,7 @@
 #include "PluginProcessor.h"
 
 #include "DSP/GrainDSP.h"
-#include "PluginEditor.h"
+// #include "PluginEditor.h"  // Not needed while using GenericAudioProcessorEditor
 #include "Tests/DSPTests.cpp"  // NOLINT(bugprone-suspicious-include)
 
 //==============================================================================
@@ -45,6 +45,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createP
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("bypass", 1), "Bypass", juce::NormalisableRange<float>(0.0f, 1.0f, 1.0f), 0.0f));
 
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("warmth", 1), "Warmth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
     return {params.begin(), params.end()};
 }
 
@@ -64,6 +67,7 @@ GRAINAudioProcessor::GRAINAudioProcessor()
     , mixParam(apvts.getRawParameterValue("mix"))
     , outputParam(apvts.getRawParameterValue("output"))
     , bypassParam(apvts.getRawParameterValue("bypass"))
+    , warmthParam(apvts.getRawParameterValue("warmth"))
 #endif
 {
 }
@@ -136,8 +140,11 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     mixSmoothed.reset(sampleRate, 0.02);
     gainSmoothed.reset(sampleRate, 0.02);
 
+    warmthSmoothed.reset(sampleRate, 0.02);
+
     // Set initial values
     driveSmoothed.setCurrentAndTargetValue(*driveParam);
+    warmthSmoothed.setCurrentAndTargetValue(*warmthParam);
 
     const bool bypass = *bypassParam > 0.5f;
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
@@ -212,6 +219,7 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
     // Update targets at block start
     driveSmoothed.setTargetValue(*driveParam);
+    warmthSmoothed.setTargetValue(*warmthParam);
     mixSmoothed.setTargetValue(targetMix);
     gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
@@ -225,6 +233,7 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     {
         // Per-sample smoothing (NOT per-block!)
         const float drive = driveSmoothed.getNextValue();
+        const float warmth = warmthSmoothed.getNextValue();
         const float mix = mixSmoothed.getNextValue();
         const float gain = gainSmoothed.getNextValue();
 
@@ -236,26 +245,17 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         const float monoInput = (leftSample + rightSample) * 0.5f;
         currentEnvelope = rmsDetector.process(monoInput);
 
-        // Process left channel
+        // Process each channel through the full DSP chain
         if (leftChannel != nullptr)
         {
-            const float dry = leftSample;
-            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
-            const float wet = GrainDSP::applyWaveshaper(biased, drive);
-            const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            const float dcBlocked = dcBlockerLeft.process(mixed);
-            leftChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
+            leftChannel[sample] =
+                GrainDSP::processSample(leftSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerLeft);
         }
 
-        // Process right channel
         if (rightChannel != nullptr)
         {
-            const float dry = rightSample;
-            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
-            const float wet = GrainDSP::applyWaveshaper(biased, drive);
-            const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            const float dcBlocked = dcBlockerRight.process(mixed);
-            rightChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
+            rightChannel[sample] =
+                GrainDSP::processSample(rightSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerRight);
         }
     }
 }
@@ -268,7 +268,8 @@ bool GRAINAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* GRAINAudioProcessor::createEditor()
 {
-    return new GRAINAudioProcessorEditor(*this);
+    // Temporary generic UI for DSP development and listening tests
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================

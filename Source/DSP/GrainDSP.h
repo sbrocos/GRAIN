@@ -14,6 +14,10 @@
 namespace GrainDSP
 {
 //==============================================================================
+// Math constants
+constexpr float kTwoPi = 6.283185307f;
+
+//==============================================================================
 // RMS Detector constants
 constexpr float kRmsAttackMs = 100.0f;   // Slow attack (ignores transients)
 constexpr float kRmsReleaseMs = 300.0f;  // Even slower release (stability)
@@ -23,6 +27,10 @@ constexpr float kRmsReleaseMs = 300.0f;  // Even slower release (stability)
 constexpr float kBiasAmount = 0.3f;         // Internal bias intensity (future: from Grain param)
 constexpr float kBiasScale = 0.1f;          // Keeps effect in micro-saturation territory
 constexpr float kDCBlockerCutoffHz = 5.0f;  // DC blocker cutoff frequency
+
+//==============================================================================
+// Warmth constants (Task 005)
+constexpr float kWarmthDepth = 0.22f;  // Maximum effect depth (22%) - calibrating via listening tests
 
 //==============================================================================
 /**
@@ -102,6 +110,22 @@ inline float applyDynamicBias(float input, float rmsLevel, float biasAmount)
 
 //==============================================================================
 /**
+ * Apply warmth: subtle even/odd harmonic balance (Task 005).
+ * Blends between symmetric (odd harmonics) and asymmetric (even harmonics)
+ * components using half-wave rectification blend.
+ * @param input Signal after waveshaper
+ * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
+ * @return Harmonically shaped signal
+ */
+inline float applyWarmth(float input, float warmth)
+{
+    const float depth = warmth * kWarmthDepth;
+    const float asymmetric = input * std::abs(input);
+    return input + (depth * (asymmetric - input));
+}
+
+//==============================================================================
+/**
  * One-pole DC blocker (high-pass filter at ~5Hz).
  * Removes DC offset introduced by the quadratic bias term.
  * Transfer function: y[n] = x[n] - x[n-1] + coeff * y[n-1]
@@ -116,11 +140,7 @@ struct DCBlocker
      * Prepare the DC blocker for a given sample rate.
      * @param sampleRate Sample rate in Hz
      */
-    void prepare(float sampleRate)
-    {
-        constexpr float kTwoPi = 6.283185307f;
-        coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate);
-    }
+    void prepare(float sampleRate) { coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate); }
 
     /**
      * Reset the DC blocker state.
@@ -178,5 +198,29 @@ inline float applyMix(float dry, float wet, float mix)
 inline float applyGain(float input, float gainLinear)
 {
     return input * gainLinear;
+}
+//==============================================================================
+/**
+ * Process a single sample through the full DSP chain:
+ * Dynamic Bias → Waveshaper → Warmth → Mix → DC Blocker → Gain.
+ * Eliminates per-channel code duplication in processBlock.
+ * @param dry The dry (unprocessed) input sample
+ * @param envelope Current RMS envelope value from detector
+ * @param drive Normalized drive amount (0.0 - 1.0)
+ * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
+ * @param mix Mix amount (0.0 = full dry, 1.0 = full wet)
+ * @param gain Linear gain multiplier (1.0 = unity)
+ * @param dcBlocker DC blocker instance for this channel (stateful)
+ * @return Processed output sample
+ */
+inline float processSample(float dry, float envelope, float drive, float warmth, float mix, float gain,
+                           DCBlocker& dcBlocker)
+{
+    const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
+    const float shaped = applyWaveshaper(biased, drive);
+    const float warmed = applyWarmth(shaped, warmth);
+    const float mixed = applyMix(dry, warmed, mix);
+    const float dcBlocked = dcBlocker.process(mixed);
+    return applyGain(dcBlocked, gain);
 }
 }  // namespace GrainDSP

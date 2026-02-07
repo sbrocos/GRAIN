@@ -28,6 +28,7 @@ public:
         runDynamicBiasTests();
         runDCBlockerTests();
         runDCOffsetAccumulationTest();
+        runWarmthTests();
     }
 
 private:
@@ -281,7 +282,7 @@ private:
             const int samplesToConverge = static_cast<int>(sampleRate * 1.0f);
             for (int i = 0; i < samplesToConverge; ++i)
             {
-                const float phase = 2.0f * 3.14159265f * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float kSample = amplitude * std::sin(phase);
                 result = detector.process(kSample);
             }
@@ -415,12 +416,11 @@ private:
 
             const float frequency = 440.0f;
             const float sampleRate = 44100.0f;
-            constexpr float kTwoPi = 6.283185307f;
 
             // Let the filter settle (5000 samples)
             for (int i = 0; i < 5000; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 blocker.process(std::sin(phase));
             }
 
@@ -428,7 +428,7 @@ private:
             float maxError = 0.0f;
             for (int i = 5000; i < 6000; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float input = std::sin(phase);
                 const float output = blocker.process(input);
                 const float error = std::abs(output - input);
@@ -475,6 +475,85 @@ private:
     }
 
     //==========================================================================
+    void runWarmthTests()
+    {
+        beginTest("Warmth: zero warmth returns input unchanged");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyWarmth(input, 0.0f);
+            expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: zero input returns zero");
+        {
+            const float result = GrainDSP::applyWarmth(0.0f, 1.0f);
+            expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: effect is subtle (bounded)");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyWarmth(input, 1.0f);
+
+            // Maximum deviation should be within kWarmthDepth (22%)
+            const float deviation = std::abs(result - input);
+            expect(deviation < std::abs(input) * 0.25f);
+        }
+
+        beginTest("Warmth: positive input shifts toward asymmetry");
+        {
+            const float input = 0.5f;
+            const float noWarmth = GrainDSP::applyWarmth(input, 0.0f);
+            const float fullWarmth = GrainDSP::applyWarmth(input, 1.0f);
+
+            expect(std::abs(fullWarmth - noWarmth) > TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: asymmetric effect on positive vs negative input");
+        {
+            const float warmth = 1.0f;
+
+            const float resultPos = GrainDSP::applyWarmth(0.5f, warmth);
+            const float resultNeg = GrainDSP::applyWarmth(-0.5f, warmth);
+
+            const float deviationPos = std::abs(resultPos - 0.5f);
+            const float deviationNeg = std::abs(resultNeg - (-0.5f));
+
+            expect(deviationPos > TestConstants::kTolerance);
+            expect(deviationNeg > TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: continuous across warmth range");
+        {
+            const float input = 0.5f;
+            float prev = GrainDSP::applyWarmth(input, 0.0f);
+
+            for (float w = 0.1f; w <= 1.0f; w += 0.1f)
+            {
+                const float current = GrainDSP::applyWarmth(input, w);
+                const float delta = std::abs(current - prev);
+
+                expect(delta < 0.05f);
+                prev = current;
+            }
+        }
+
+        beginTest("Warmth: buffer stability with constant input");
+        {
+            const float warmth = 0.7f;
+            const float input = 0.5f;
+
+            const float expected = GrainDSP::applyWarmth(input, warmth);
+
+            for (int i = 0; i < TestConstants::kBufferSize; ++i)
+            {
+                const float result = GrainDSP::applyWarmth(input, warmth);
+                expectWithinAbsoluteError(result, expected, TestConstants::kTolerance);
+            }
+        }
+    }
+
+    //==========================================================================
     void runDCOffsetAccumulationTest()
     {
         beginTest("DC Offset: bias + DC blocker pipeline has near-zero mean");
@@ -486,12 +565,11 @@ private:
             const float sampleRate = 44100.0f;
             const float rmsLevel = 0.5f;
             const float biasAmount = 1.0f;
-            constexpr float kTwoPi = 6.283185307f;
 
             // Let filter settle first (500 samples)
             for (int i = 0; i < 500; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float input = std::sin(phase);
                 const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
                 blocker.process(biased);
@@ -502,7 +580,7 @@ private:
             float sum = 0.0f;
             for (int i = 0; i < measureSamples; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
                 const float input = std::sin(phase);
                 const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
                 sum += blocker.process(biased);

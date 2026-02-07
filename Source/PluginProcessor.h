@@ -69,11 +69,13 @@ private:
     std::atomic<float>* mixParam = nullptr;
     std::atomic<float>* outputParam = nullptr;
     std::atomic<float>* bypassParam = nullptr;
+    std::atomic<float>* warmthParam = nullptr;
 
     // Smoothed values for click-free parameter changes
     juce::SmoothedValue<float> driveSmoothed;
     juce::SmoothedValue<float> mixSmoothed;
     juce::SmoothedValue<float> gainSmoothed;
+    juce::SmoothedValue<float> warmthSmoothed;
 
     // RMS detector for Dynamic Bias (Task 003)
     GrainDSP::RMSDetector rmsDetector;
