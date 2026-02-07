@@ -13,9 +13,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Find source files
+# Find all source files (for formatting)
 find_sources() {
   find "$SOURCE_DIR" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) 2>/dev/null || true
+}
+
+# Find compilable source files (excludes Tests/ — included via #include, not a standalone translation unit)
+find_tidy_sources() {
+  find "$SOURCE_DIR" -path "*/Tests/*" -prune -o -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) -print 2>/dev/null || true
 }
 
 # Check if tools are installed
@@ -93,40 +98,30 @@ format_fix() {
   echo -e "${GREEN}Formatting complete!${NC}"
 }
 
-# Run clang-tidy
+# Run clang-tidy (uses compile_commands.json for correct JUCE flags and translation units)
 run_tidy() {
   echo -e "${YELLOW}Running clang-tidy...${NC}"
 
+  if [ ! -f "$PROJECT_ROOT/compile_commands.json" ]; then
+    echo -e "${RED}Error: compile_commands.json not found in project root.${NC}"
+    echo "  Generate it with:"
+    echo "  python3 scripts/generate_compile_commands.py"
+    exit 1
+  fi
+
   local files
-  files=$(find_sources)
+  files=$(find_tidy_sources)
 
   if [ -z "$files" ]; then
     echo -e "${YELLOW}No source files found in $SOURCE_DIR${NC}"
     exit 0
   fi
 
-  # Check for compile_commands.json
-  local compile_db=""
-  if [ -f "$PROJECT_ROOT/build/compile_commands.json" ]; then
-    compile_db="-p $PROJECT_ROOT/build"
-  elif [ -f "$PROJECT_ROOT/Builds/compile_commands.json" ]; then
-    compile_db="-p $PROJECT_ROOT/Builds"
-  else
-    echo -e "${YELLOW}Warning: No compile_commands.json found.${NC}"
-    echo "  For best results, generate it with CMake:"
-    echo "  cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build"
-    echo ""
-  fi
-
   local failed=0
 
   for file in $files; do
     echo -e "${YELLOW}Analyzing: $file${NC}"
-    if ! clang-tidy $compile_db "$file" -- \
-      -std=c++17 \
-      -I"$SOURCE_DIR" \
-      -DJUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1 \
-      2>&1 | grep -v "^$"; then
+    if ! clang-tidy -p "$PROJECT_ROOT" "$file" 2>&1 | grep -v "^$"; then
       failed=1
     fi
   done

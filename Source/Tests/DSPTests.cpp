@@ -25,6 +25,9 @@ public:
         runBufferTests();
         runDiscontinuityTests();
         runRMSDetectorTests();
+        runDynamicBiasTests();
+        runDCBlockerTests();
+        runDCOffsetAccumulationTest();
     }
 
 private:
@@ -338,6 +341,175 @@ private:
             // After reset, envelope should be zero
             const float result = detector.process(0.0f);
             expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
+        }
+    }
+
+    //==========================================================================
+    void runDynamicBiasTests()
+    {
+        beginTest("Dynamic Bias: zero RMS produces no bias");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyDynamicBias(input, 0.0f, 1.0f);
+            expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
+        }
+
+        beginTest("Dynamic Bias: zero amount produces no bias");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 0.0f);
+            expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
+        }
+
+        beginTest("Dynamic Bias: positive input biased upward");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f);
+            expect(result > input);
+        }
+
+        beginTest("Dynamic Bias: negative input biased upward (asymmetry)");
+        {
+            const float input = -0.5f;
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f);
+            // Quadratic term (-0.5)^2 = 0.25, bias is positive -> shifts toward positive
+            expect(result > input);
+        }
+
+        beginTest("Dynamic Bias: asymmetric response (even harmonics)");
+        {
+            const float resultPositive = GrainDSP::applyDynamicBias(0.5f, 0.5f, 1.0f);
+            const float resultNegative = GrainDSP::applyDynamicBias(-0.5f, 0.5f, 1.0f);
+            // Asymmetry: |result for +0.5| should NOT equal |result for -0.5|
+            expect(std::abs(resultPositive) != std::abs(resultNegative));
+        }
+
+        beginTest("Dynamic Bias: higher RMS produces more bias");
+        {
+            const float input = 0.5f;
+            const float resultLowRMS = GrainDSP::applyDynamicBias(input, 0.1f, 1.0f);
+            const float resultHighRMS = GrainDSP::applyDynamicBias(input, 0.9f, 1.0f);
+
+            const float deviationLow = std::abs(resultLowRMS - input);
+            const float deviationHigh = std::abs(resultHighRMS - input);
+            expect(deviationHigh > deviationLow);
+        }
+
+        beginTest("Dynamic Bias: effect is subtle (bounded)");
+        {
+            const float input = 1.0f;
+            const float result = GrainDSP::applyDynamicBias(input, 1.0f, 1.0f);
+            // Even at extreme settings, should stay within kBiasScale (10%) of input
+            expect(result <= input * (1.0f + GrainDSP::kBiasScale));
+            expect(result >= input * (1.0f - GrainDSP::kBiasScale));
+        }
+    }
+
+    //==========================================================================
+    void runDCBlockerTests()
+    {
+        beginTest("DC Blocker: passes AC signal");
+        {
+            GrainDSP::DCBlocker blocker;
+            blocker.prepare(44100.0f);
+
+            const float frequency = 440.0f;
+            const float sampleRate = 44100.0f;
+            constexpr float kTwoPi = 6.283185307f;
+
+            // Let the filter settle (5000 samples)
+            for (int i = 0; i < 5000; ++i)
+            {
+                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                blocker.process(std::sin(phase));
+            }
+
+            // After settling, output should closely match input
+            float maxError = 0.0f;
+            for (int i = 5000; i < 6000; ++i)
+            {
+                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float input = std::sin(phase);
+                const float output = blocker.process(input);
+                const float error = std::abs(output - input);
+                maxError = std::max(maxError, error);
+            }
+
+            // AC signal should pass through with minimal attenuation
+            // Tolerance accounts for small phase shift (~0.65 degrees at 440Hz)
+            expect(maxError < 0.02f);
+        }
+
+        beginTest("DC Blocker: removes DC offset");
+        {
+            GrainDSP::DCBlocker blocker;
+            blocker.prepare(44100.0f);
+
+            // Feed constant DC value
+            float output = 0.0f;
+            for (int i = 0; i < 44100; ++i)
+            {
+                output = blocker.process(1.0f);
+            }
+
+            // Output should converge toward 0
+            expect(std::abs(output) < 0.01f);
+        }
+
+        beginTest("DC Blocker: reset clears state");
+        {
+            GrainDSP::DCBlocker blocker;
+            blocker.prepare(44100.0f);
+
+            // Build up state
+            for (int i = 0; i < 1000; ++i)
+            {
+                blocker.process(1.0f);
+            }
+
+            blocker.reset();
+
+            expectWithinAbsoluteError(blocker.x1, 0.0f, TestConstants::kTolerance);
+            expectWithinAbsoluteError(blocker.y1, 0.0f, TestConstants::kTolerance);
+        }
+    }
+
+    //==========================================================================
+    void runDCOffsetAccumulationTest()
+    {
+        beginTest("DC Offset: bias + DC blocker pipeline has near-zero mean");
+        {
+            GrainDSP::DCBlocker blocker;
+            blocker.prepare(44100.0f);
+
+            const float frequency = 440.0f;
+            const float sampleRate = 44100.0f;
+            const float rmsLevel = 0.5f;
+            const float biasAmount = 1.0f;
+            constexpr float kTwoPi = 6.283185307f;
+
+            // Let filter settle first (500 samples)
+            for (int i = 0; i < 500; ++i)
+            {
+                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float input = std::sin(phase);
+                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
+                blocker.process(biased);
+            }
+
+            // Measure mean over ~10 cycles of 440Hz (~227 samples per cycle)
+            const int measureSamples = static_cast<int>(sampleRate / frequency) * 10;
+            float sum = 0.0f;
+            for (int i = 0; i < measureSamples; ++i)
+            {
+                const float phase = kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
+                const float input = std::sin(phase);
+                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
+                sum += blocker.process(biased);
+            }
+
+            const float mean = sum / static_cast<float>(measureSamples);
+            expect(std::abs(mean) < 0.01f);
         }
     }
 };

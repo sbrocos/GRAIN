@@ -19,6 +19,12 @@ constexpr float kRmsAttackMs = 100.0f;   // Slow attack (ignores transients)
 constexpr float kRmsReleaseMs = 300.0f;  // Even slower release (stability)
 
 //==============================================================================
+// Dynamic Bias constants (Task 004)
+constexpr float kBiasAmount = 0.3f;         // Internal bias intensity (future: from Grain param)
+constexpr float kBiasScale = 0.1f;          // Keeps effect in micro-saturation territory
+constexpr float kDCBlockerCutoffHz = 5.0f;  // DC blocker cutoff frequency
+
+//==============================================================================
 /**
  * Stateless helper for calculating one-pole filter coefficient.
  * @param sampleRate Sample rate in Hz
@@ -76,6 +82,66 @@ struct RMSDetector
 
         // Return RMS (square root of mean square)
         return std::sqrt(envelope);
+    }
+};
+
+//==============================================================================
+/**
+ * Apply dynamic bias for even-harmonic generation (Task 004).
+ * Adds a quadratic term proportional to RMS level, breaking waveform symmetry.
+ * @param input The input sample
+ * @param rmsLevel Current RMS envelope value from detector
+ * @param biasAmount Bias intensity (0.0 = no bias, 1.0 = full bias)
+ * @return Biased output sample
+ */
+inline float applyDynamicBias(float input, float rmsLevel, float biasAmount)
+{
+    const float bias = rmsLevel * biasAmount * kBiasScale;
+    return input + (bias * input * input);
+}
+
+//==============================================================================
+/**
+ * One-pole DC blocker (high-pass filter at ~5Hz).
+ * Removes DC offset introduced by the quadratic bias term.
+ * Transfer function: y[n] = x[n] - x[n-1] + coeff * y[n-1]
+ */
+struct DCBlocker
+{
+    float x1 = 0.0f;
+    float y1 = 0.0f;
+    float coeff = 0.9993f;
+
+    /**
+     * Prepare the DC blocker for a given sample rate.
+     * @param sampleRate Sample rate in Hz
+     */
+    void prepare(float sampleRate)
+    {
+        constexpr float kTwoPi = 6.283185307f;
+        coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate);
+    }
+
+    /**
+     * Reset the DC blocker state.
+     */
+    void reset()
+    {
+        x1 = 0.0f;
+        y1 = 0.0f;
+    }
+
+    /**
+     * Process a single sample.
+     * @param input Input sample
+     * @return DC-blocked output sample
+     */
+    float process(float input)
+    {
+        const float output = (input - x1) + (coeff * y1);
+        x1 = input;
+        y1 = output;
+        return output;
     }
 };
 
