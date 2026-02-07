@@ -149,6 +149,12 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     rmsDetector.prepare(static_cast<float>(sampleRate), GrainDSP::kRmsAttackMs, GrainDSP::kRmsReleaseMs);
     rmsDetector.reset();
     currentEnvelope = 0.0f;
+
+    // Initialize DC blockers (Task 004)
+    dcBlockerLeft.prepare(static_cast<float>(sampleRate));
+    dcBlockerLeft.reset();
+    dcBlockerRight.prepare(static_cast<float>(sampleRate));
+    dcBlockerRight.reset();
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -229,24 +235,27 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         // RMS detector: process once per sample-frame with mono sum (linked stereo)
         const float monoInput = (leftSample + rightSample) * 0.5f;
         currentEnvelope = rmsDetector.process(monoInput);
-        // Note: currentEnvelope will be used by Dynamic Bias (Task 004)
 
         // Process left channel
         if (leftChannel != nullptr)
         {
             const float dry = leftSample;
-            const float wet = GrainDSP::applyWaveshaper(dry, drive);
+            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
+            const float wet = GrainDSP::applyWaveshaper(biased, drive);
             const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            leftChannel[sample] = GrainDSP::applyGain(mixed, gain);
+            const float dcBlocked = dcBlockerLeft.process(mixed);
+            leftChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
         }
 
         // Process right channel
         if (rightChannel != nullptr)
         {
             const float dry = rightSample;
-            const float wet = GrainDSP::applyWaveshaper(dry, drive);
+            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
+            const float wet = GrainDSP::applyWaveshaper(biased, drive);
             const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            rightChannel[sample] = GrainDSP::applyGain(mixed, gain);
+            const float dcBlocked = dcBlockerRight.process(mixed);
+            rightChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
         }
     }
 }

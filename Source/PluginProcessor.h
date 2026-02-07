@@ -79,6 +79,10 @@ private:
     GrainDSP::RMSDetector rmsDetector;
     float currentEnvelope = 0.0f;
 
+    // DC blockers for removing bias-induced DC offset (Task 004)
+    GrainDSP::DCBlocker dcBlockerLeft;
+    GrainDSP::DCBlocker dcBlockerRight;
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)
 };
