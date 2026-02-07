@@ -9,7 +9,7 @@
 #include "PluginProcessor.h"
 
 #include "DSP/GrainDSP.h"
-#include "PluginEditor.h"
+// #include "PluginEditor.h"  // Not needed while using GenericAudioProcessorEditor
 #include "Tests/DSPTests.cpp"  // NOLINT(bugprone-suspicious-include)
 
 //==============================================================================
@@ -268,7 +268,8 @@ bool GRAINAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* GRAINAudioProcessor::createEditor()
 {
-    return new GRAINAudioProcessorEditor(*this);
+    // Temporary generic UI for DSP development and listening tests
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
