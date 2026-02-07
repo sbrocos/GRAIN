@@ -236,26 +236,16 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         const float monoInput = (leftSample + rightSample) * 0.5f;
         currentEnvelope = rmsDetector.process(monoInput);
 
-        // Process left channel
+        // Process each channel through the full DSP chain
         if (leftChannel != nullptr)
         {
-            const float dry = leftSample;
-            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
-            const float wet = GrainDSP::applyWaveshaper(biased, drive);
-            const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            const float dcBlocked = dcBlockerLeft.process(mixed);
-            leftChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
+            leftChannel[sample] = GrainDSP::processSample(leftSample, currentEnvelope, drive, mix, gain, dcBlockerLeft);
         }
 
-        // Process right channel
         if (rightChannel != nullptr)
         {
-            const float dry = rightSample;
-            const float biased = GrainDSP::applyDynamicBias(dry, currentEnvelope, GrainDSP::kBiasAmount);
-            const float wet = GrainDSP::applyWaveshaper(biased, drive);
-            const float mixed = GrainDSP::applyMix(dry, wet, mix);
-            const float dcBlocked = dcBlockerRight.process(mixed);
-            rightChannel[sample] = GrainDSP::applyGain(dcBlocked, gain);
+            rightChannel[sample] =
+                GrainDSP::processSample(rightSample, currentEnvelope, drive, mix, gain, dcBlockerRight);
         }
     }
 }

@@ -281,7 +281,7 @@ private:
             const int samplesToConverge = static_cast<int>(sampleRate * 1.0f);
             for (int i = 0; i < samplesToConverge; ++i)
             {
-                const float phase = 2.0f * 3.14159265f * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float kSample = amplitude * std::sin(phase);
                 result = detector.process(kSample);
             }
@@ -415,12 +415,11 @@ private:
 
             const float frequency = 440.0f;
             const float sampleRate = 44100.0f;
-            constexpr float kTwoPi = 6.283185307f;
 
             // Let the filter settle (5000 samples)
             for (int i = 0; i < 5000; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 blocker.process(std::sin(phase));
             }
 
@@ -428,7 +427,7 @@ private:
             float maxError = 0.0f;
             for (int i = 5000; i < 6000; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float input = std::sin(phase);
                 const float output = blocker.process(input);
                 const float error = std::abs(output - input);
@@ -486,12 +485,11 @@ private:
             const float sampleRate = 44100.0f;
             const float rmsLevel = 0.5f;
             const float biasAmount = 1.0f;
-            constexpr float kTwoPi = 6.283185307f;
 
             // Let filter settle first (500 samples)
             for (int i = 0; i < 500; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float input = std::sin(phase);
                 const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
                 blocker.process(biased);
@@ -502,7 +500,7 @@ private:
             float sum = 0.0f;
             for (int i = 0; i < measureSamples; ++i)
             {
-                const float phase = kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
                 const float input = std::sin(phase);
                 const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
                 sum += blocker.process(biased);

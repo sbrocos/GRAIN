@@ -14,6 +14,10 @@
 namespace GrainDSP
 {
 //==============================================================================
+// Math constants
+constexpr float kTwoPi = 6.283185307f;
+
+//==============================================================================
 // RMS Detector constants
 constexpr float kRmsAttackMs = 100.0f;   // Slow attack (ignores transients)
 constexpr float kRmsReleaseMs = 300.0f;  // Even slower release (stability)
@@ -116,11 +120,7 @@ struct DCBlocker
      * Prepare the DC blocker for a given sample rate.
      * @param sampleRate Sample rate in Hz
      */
-    void prepare(float sampleRate)
-    {
-        constexpr float kTwoPi = 6.283185307f;
-        coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate);
-    }
+    void prepare(float sampleRate) { coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate); }
 
     /**
      * Reset the DC blocker state.
@@ -178,5 +178,26 @@ inline float applyMix(float dry, float wet, float mix)
 inline float applyGain(float input, float gainLinear)
 {
     return input * gainLinear;
+}
+//==============================================================================
+/**
+ * Process a single sample through the full DSP chain:
+ * Dynamic Bias → Waveshaper → Mix → DC Blocker → Gain.
+ * Eliminates per-channel code duplication in processBlock.
+ * @param dry The dry (unprocessed) input sample
+ * @param envelope Current RMS envelope value from detector
+ * @param drive Normalized drive amount (0.0 - 1.0)
+ * @param mix Mix amount (0.0 = full dry, 1.0 = full wet)
+ * @param gain Linear gain multiplier (1.0 = unity)
+ * @param dcBlocker DC blocker instance for this channel (stateful)
+ * @return Processed output sample
+ */
+inline float processSample(float dry, float envelope, float drive, float mix, float gain, DCBlocker& dcBlocker)
+{
+    const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
+    const float wet = applyWaveshaper(biased, drive);
+    const float mixed = applyMix(dry, wet, mix);
+    const float dcBlocked = dcBlocker.process(mixed);
+    return applyGain(dcBlocked, gain);
 }
 }  // namespace GrainDSP
