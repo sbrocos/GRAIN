@@ -495,9 +495,9 @@ private:
             const float input = 0.5f;
             const float result = GrainDSP::applyWarmth(input, 1.0f);
 
-            // Maximum deviation should be within kWarmthDepth (10%)
+            // Maximum deviation should be within kWarmthDepth (22%)
             const float deviation = std::abs(result - input);
-            expect(deviation < std::abs(input) * 0.15f);
+            expect(deviation < std::abs(input) * 0.25f);
         }
 
         beginTest("Warmth: positive input shifts toward asymmetry");

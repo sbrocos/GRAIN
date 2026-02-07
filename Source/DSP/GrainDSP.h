@@ -30,7 +30,7 @@ constexpr float kDCBlockerCutoffHz = 5.0f;  // DC blocker cutoff frequency
 
 //==============================================================================
 // Warmth constants (Task 005)
-constexpr float kWarmthDepth = 0.1f;  // Maximum effect depth (10%)
+constexpr float kWarmthDepth = 0.22f;  // Maximum effect depth (22%) - calibrating via listening tests
 
 //==============================================================================
 /**
