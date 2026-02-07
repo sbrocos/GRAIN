@@ -36,7 +36,7 @@ constexpr float kWarmthDepth = 0.22f;  // Maximum effect depth (22%) - calibrati
 // Spectral Focus constants (Task 006)
 constexpr float kFocusLowShelfFreq = 200.0f;    // Hz
 constexpr float kFocusHighShelfFreq = 4000.0f;  // Hz
-constexpr float kFocusShelfGainDb = 2.0f;       // dB (max boost/cut)
+constexpr float kFocusShelfGainDb = 3.0f;       // dB (max boost/cut)
 constexpr float kFocusShelfQ = 0.707f;          // Butterworth Q
 
 //==============================================================================
@@ -194,18 +194,18 @@ struct SpectralFocus
         switch (mode)
         {
             case FocusMode::Low:
-                lowGainDb = kFocusShelfGainDb;    // +2 dB
-                highGainDb = -kFocusShelfGainDb;  // -2 dB
+                lowGainDb = kFocusShelfGainDb;    // +3 dB
+                highGainDb = -kFocusShelfGainDb;  // -3 dB
                 break;
 
             case FocusMode::Mid:
-                lowGainDb = -kFocusShelfGainDb * 0.5f;   // -1 dB
-                highGainDb = -kFocusShelfGainDb * 0.5f;  // -1 dB
+                lowGainDb = -kFocusShelfGainDb * 0.5f;   // -1.5 dB
+                highGainDb = -kFocusShelfGainDb * 0.5f;  // -1.5 dB
                 break;
 
             case FocusMode::High:
-                lowGainDb = -kFocusShelfGainDb;  // -2 dB
-                highGainDb = kFocusShelfGainDb;  // +2 dB
+                lowGainDb = -kFocusShelfGainDb;  // -3 dB
+                highGainDb = kFocusShelfGainDb;  // +3 dB
                 break;
         }
 
