@@ -29,6 +29,10 @@ constexpr float kBiasScale = 0.1f;          // Keeps effect in micro-saturation 
 constexpr float kDCBlockerCutoffHz = 5.0f;  // DC blocker cutoff frequency
 
 //==============================================================================
+// Warmth constants (Task 005)
+constexpr float kWarmthDepth = 0.1f;  // Maximum effect depth (10%)
+
+//==============================================================================
 /**
  * Stateless helper for calculating one-pole filter coefficient.
  * @param sampleRate Sample rate in Hz
@@ -102,6 +106,22 @@ inline float applyDynamicBias(float input, float rmsLevel, float biasAmount)
 {
     const float bias = rmsLevel * biasAmount * kBiasScale;
     return input + (bias * input * input);
+}
+
+//==============================================================================
+/**
+ * Apply warmth: subtle even/odd harmonic balance (Task 005).
+ * Blends between symmetric (odd harmonics) and asymmetric (even harmonics)
+ * components using half-wave rectification blend.
+ * @param input Signal after waveshaper
+ * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
+ * @return Harmonically shaped signal
+ */
+inline float applyWarmth(float input, float warmth)
+{
+    const float depth = warmth * kWarmthDepth;
+    const float asymmetric = input * std::abs(input);
+    return input + (depth * (asymmetric - input));
 }
 
 //==============================================================================
@@ -182,21 +202,24 @@ inline float applyGain(float input, float gainLinear)
 //==============================================================================
 /**
  * Process a single sample through the full DSP chain:
- * Dynamic Bias → Waveshaper → Mix → DC Blocker → Gain.
+ * Dynamic Bias → Waveshaper → Warmth → Mix → DC Blocker → Gain.
  * Eliminates per-channel code duplication in processBlock.
  * @param dry The dry (unprocessed) input sample
  * @param envelope Current RMS envelope value from detector
  * @param drive Normalized drive amount (0.0 - 1.0)
+ * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
  * @param mix Mix amount (0.0 = full dry, 1.0 = full wet)
  * @param gain Linear gain multiplier (1.0 = unity)
  * @param dcBlocker DC blocker instance for this channel (stateful)
  * @return Processed output sample
  */
-inline float processSample(float dry, float envelope, float drive, float mix, float gain, DCBlocker& dcBlocker)
+inline float processSample(float dry, float envelope, float drive, float warmth, float mix, float gain,
+                           DCBlocker& dcBlocker)
 {
     const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
-    const float wet = applyWaveshaper(biased, drive);
-    const float mixed = applyMix(dry, wet, mix);
+    const float shaped = applyWaveshaper(biased, drive);
+    const float warmed = applyWarmth(shaped, warmth);
+    const float mixed = applyMix(dry, warmed, mix);
     const float dcBlocked = dcBlocker.process(mixed);
     return applyGain(dcBlocked, gain);
 }

@@ -28,6 +28,7 @@ public:
         runDynamicBiasTests();
         runDCBlockerTests();
         runDCOffsetAccumulationTest();
+        runWarmthTests();
     }
 
 private:
@@ -470,6 +471,85 @@ private:
 
             expectWithinAbsoluteError(blocker.x1, 0.0f, TestConstants::kTolerance);
             expectWithinAbsoluteError(blocker.y1, 0.0f, TestConstants::kTolerance);
+        }
+    }
+
+    //==========================================================================
+    void runWarmthTests()
+    {
+        beginTest("Warmth: zero warmth returns input unchanged");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyWarmth(input, 0.0f);
+            expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: zero input returns zero");
+        {
+            const float result = GrainDSP::applyWarmth(0.0f, 1.0f);
+            expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: effect is subtle (bounded)");
+        {
+            const float input = 0.5f;
+            const float result = GrainDSP::applyWarmth(input, 1.0f);
+
+            // Maximum deviation should be within kWarmthDepth (10%)
+            const float deviation = std::abs(result - input);
+            expect(deviation < std::abs(input) * 0.15f);
+        }
+
+        beginTest("Warmth: positive input shifts toward asymmetry");
+        {
+            const float input = 0.5f;
+            const float noWarmth = GrainDSP::applyWarmth(input, 0.0f);
+            const float fullWarmth = GrainDSP::applyWarmth(input, 1.0f);
+
+            expect(std::abs(fullWarmth - noWarmth) > TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: asymmetric effect on positive vs negative input");
+        {
+            const float warmth = 1.0f;
+
+            const float resultPos = GrainDSP::applyWarmth(0.5f, warmth);
+            const float resultNeg = GrainDSP::applyWarmth(-0.5f, warmth);
+
+            const float deviationPos = std::abs(resultPos - 0.5f);
+            const float deviationNeg = std::abs(resultNeg - (-0.5f));
+
+            expect(deviationPos > TestConstants::kTolerance);
+            expect(deviationNeg > TestConstants::kTolerance);
+        }
+
+        beginTest("Warmth: continuous across warmth range");
+        {
+            const float input = 0.5f;
+            float prev = GrainDSP::applyWarmth(input, 0.0f);
+
+            for (float w = 0.1f; w <= 1.0f; w += 0.1f)
+            {
+                const float current = GrainDSP::applyWarmth(input, w);
+                const float delta = std::abs(current - prev);
+
+                expect(delta < 0.05f);
+                prev = current;
+            }
+        }
+
+        beginTest("Warmth: buffer stability with constant input");
+        {
+            const float warmth = 0.7f;
+            const float input = 0.5f;
+
+            const float expected = GrainDSP::applyWarmth(input, warmth);
+
+            for (int i = 0; i < TestConstants::kBufferSize; ++i)
+            {
+                const float result = GrainDSP::applyWarmth(input, warmth);
+                expectWithinAbsoluteError(result, expected, TestConstants::kTolerance);
+            }
         }
     }
 
