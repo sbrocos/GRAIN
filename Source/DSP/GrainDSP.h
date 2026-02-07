@@ -33,6 +33,13 @@ constexpr float kDCBlockerCutoffHz = 5.0f;  // DC blocker cutoff frequency
 constexpr float kWarmthDepth = 0.22f;  // Maximum effect depth (22%) - calibrating via listening tests
 
 //==============================================================================
+// Spectral Focus constants (Task 006)
+constexpr float kFocusLowShelfFreq = 200.0f;    // Hz
+constexpr float kFocusHighShelfFreq = 4000.0f;  // Hz
+constexpr float kFocusShelfGainDb = 2.0f;       // dB (max boost/cut)
+constexpr float kFocusShelfQ = 0.707f;          // Butterworth Q
+
+//==============================================================================
 /**
  * Stateless helper for calculating one-pole filter coefficient.
  * @param sampleRate Sample rate in Hz
@@ -125,6 +132,185 @@ inline float applyWarmth(float input, float warmth)
 }
 
 //==============================================================================
+// Spectral Focus: discrete Low/Mid/High mode (Task 006)
+
+enum class FocusMode
+{
+    Low = 0,
+    Mid = 1,
+    High = 2
+};
+
+/**
+ * Spectral Focus using biquad shelf filters (Task 006).
+ * Gently biases where harmonic generation is emphasized using
+ * a low shelf (200 Hz) and high shelf (4 kHz) pair.
+ * Coefficients from Audio EQ Cookbook (Robert Bristow-Johnson).
+ */
+struct SpectralFocus
+{
+    /**
+     * Transposed Direct Form II biquad filter state.
+     */
+    struct BiquadState
+    {
+        float b0 = 1.0f;
+        float b1 = 0.0f;
+        float b2 = 0.0f;
+        float a1 = 0.0f;
+        float a2 = 0.0f;
+        float z1 = 0.0f;
+        float z2 = 0.0f;
+
+        float process(float input)
+        {
+            const float output = (b0 * input) + z1;
+            z1 = (b1 * input) - (a1 * output) + z2;
+            z2 = (b2 * input) - (a2 * output);
+            return output;
+        }
+
+        void reset()
+        {
+            z1 = 0.0f;
+            z2 = 0.0f;
+        }
+    };
+
+    // Two filters per channel: low shelf + high shelf
+    BiquadState lowShelf[2];
+    BiquadState highShelf[2];
+
+    /**
+     * Prepare the filters for a given sample rate and focus mode.
+     * @param sampleRate Sample rate in Hz
+     * @param mode Focus mode (Low, Mid, High)
+     */
+    void prepare(float sampleRate, FocusMode mode)
+    {
+        float lowGainDb = 0.0f;
+        float highGainDb = 0.0f;
+
+        switch (mode)
+        {
+            case FocusMode::Low:
+                lowGainDb = kFocusShelfGainDb;    // +2 dB
+                highGainDb = -kFocusShelfGainDb;  // -2 dB
+                break;
+
+            case FocusMode::Mid:
+                lowGainDb = -kFocusShelfGainDb * 0.5f;   // -1 dB
+                highGainDb = -kFocusShelfGainDb * 0.5f;  // -1 dB
+                break;
+
+            case FocusMode::High:
+                lowGainDb = -kFocusShelfGainDb;  // -2 dB
+                highGainDb = kFocusShelfGainDb;  // +2 dB
+                break;
+        }
+
+        const auto lowCoeffs = calculateLowShelf(sampleRate, kFocusLowShelfFreq, kFocusShelfQ, lowGainDb);
+        const auto highCoeffs = calculateHighShelf(sampleRate, kFocusHighShelfFreq, kFocusShelfQ, highGainDb);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            lowShelf[ch].b0 = lowCoeffs.b0;
+            lowShelf[ch].b1 = lowCoeffs.b1;
+            lowShelf[ch].b2 = lowCoeffs.b2;
+            lowShelf[ch].a1 = lowCoeffs.a1;
+            lowShelf[ch].a2 = lowCoeffs.a2;
+
+            highShelf[ch].b0 = highCoeffs.b0;
+            highShelf[ch].b1 = highCoeffs.b1;
+            highShelf[ch].b2 = highCoeffs.b2;
+            highShelf[ch].a1 = highCoeffs.a1;
+            highShelf[ch].a2 = highCoeffs.a2;
+        }
+    }
+
+    /**
+     * Process a single sample through both shelf filters.
+     * @param input Input sample
+     * @param channel Channel index (0 = left, 1 = right)
+     * @return Filtered output sample
+     */
+    float process(float input, int channel)
+    {
+        float output = lowShelf[channel].process(input);
+        output = highShelf[channel].process(output);
+        return output;
+    }
+
+    /**
+     * Reset all filter states.
+     */
+    void reset()
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            lowShelf[ch].reset();
+            highShelf[ch].reset();
+        }
+    }
+
+private:
+    struct Coefficients
+    {
+        float b0, b1, b2, a1, a2;
+    };
+
+    /**
+     * Calculate low shelf biquad coefficients.
+     * Reference: Audio EQ Cookbook (Robert Bristow-Johnson)
+     */
+    static Coefficients calculateLowShelf(float sampleRate, float freq, float q, float gainDb)
+    {
+        const float kA = std::pow(10.0f, gainDb / 40.0f);
+        const float w0 = kTwoPi * freq / sampleRate;
+        const float cosw0 = std::cos(w0);
+        const float sinw0 = std::sin(w0);
+        const float alpha = sinw0 / (2.0f * q);
+        const float sqrtA = std::sqrt(kA);
+
+        const float a0 = (kA + 1.0f) + ((kA - 1.0f) * cosw0) + (2.0f * sqrtA * alpha);
+
+        Coefficients c{};
+        c.b0 = (kA * ((kA + 1.0f) - ((kA - 1.0f) * cosw0) + (2.0f * sqrtA * alpha))) / a0;
+        c.b1 = (2.0f * kA * ((kA - 1.0f) - ((kA + 1.0f) * cosw0))) / a0;
+        c.b2 = (kA * ((kA + 1.0f) - ((kA - 1.0f) * cosw0) - (2.0f * sqrtA * alpha))) / a0;
+        c.a1 = (-2.0f * ((kA - 1.0f) + ((kA + 1.0f) * cosw0))) / a0;
+        c.a2 = ((kA + 1.0f) + ((kA - 1.0f) * cosw0) - (2.0f * sqrtA * alpha)) / a0;
+
+        return c;
+    }
+
+    /**
+     * Calculate high shelf biquad coefficients.
+     * Reference: Audio EQ Cookbook (Robert Bristow-Johnson)
+     */
+    static Coefficients calculateHighShelf(float sampleRate, float freq, float q, float gainDb)
+    {
+        const float kA = std::pow(10.0f, gainDb / 40.0f);
+        const float w0 = kTwoPi * freq / sampleRate;
+        const float cosw0 = std::cos(w0);
+        const float sinw0 = std::sin(w0);
+        const float alpha = sinw0 / (2.0f * q);
+        const float sqrtA = std::sqrt(kA);
+
+        const float a0 = (kA + 1.0f) - ((kA - 1.0f) * cosw0) + (2.0f * sqrtA * alpha);
+
+        Coefficients c{};
+        c.b0 = (kA * ((kA + 1.0f) + ((kA - 1.0f) * cosw0) + (2.0f * sqrtA * alpha))) / a0;
+        c.b1 = (-2.0f * kA * ((kA - 1.0f) + ((kA + 1.0f) * cosw0))) / a0;
+        c.b2 = (kA * ((kA + 1.0f) + ((kA - 1.0f) * cosw0) - (2.0f * sqrtA * alpha))) / a0;
+        c.a1 = (2.0f * ((kA - 1.0f) - ((kA + 1.0f) * cosw0))) / a0;
+        c.a2 = ((kA + 1.0f) - ((kA - 1.0f) * cosw0) - (2.0f * sqrtA * alpha)) / a0;
+
+        return c;
+    }
+};
+
+//==============================================================================
 /**
  * One-pole DC blocker (high-pass filter at ~5Hz).
  * Removes DC offset introduced by the quadratic bias term.
@@ -202,7 +388,7 @@ inline float applyGain(float input, float gainLinear)
 //==============================================================================
 /**
  * Process a single sample through the full DSP chain:
- * Dynamic Bias → Waveshaper → Warmth → Mix → DC Blocker → Gain.
+ * Dynamic Bias → Waveshaper → Warmth → Focus → Mix → DC Blocker → Gain.
  * Eliminates per-channel code duplication in processBlock.
  * @param dry The dry (unprocessed) input sample
  * @param envelope Current RMS envelope value from detector
@@ -211,15 +397,18 @@ inline float applyGain(float input, float gainLinear)
  * @param mix Mix amount (0.0 = full dry, 1.0 = full wet)
  * @param gain Linear gain multiplier (1.0 = unity)
  * @param dcBlocker DC blocker instance for this channel (stateful)
+ * @param focus Spectral focus instance (stateful)
+ * @param channel Channel index (0 = left, 1 = right)
  * @return Processed output sample
  */
 inline float processSample(float dry, float envelope, float drive, float warmth, float mix, float gain,
-                           DCBlocker& dcBlocker)
+                           DCBlocker& dcBlocker, SpectralFocus& focus, int channel)
 {
     const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
     const float shaped = applyWaveshaper(biased, drive);
     const float warmed = applyWarmth(shaped, warmth);
-    const float mixed = applyMix(dry, warmed, mix);
+    const float focused = focus.process(warmed, channel);
+    const float mixed = applyMix(dry, focused, mix);
     const float dcBlocked = dcBlocker.process(mixed);
     return applyGain(dcBlocked, gain);
 }
