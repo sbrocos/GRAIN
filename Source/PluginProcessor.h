@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include "DSP/GrainDSP.h"
+#include "DSP/GrainDSPPipeline.h"
+#include "DSP/RMSDetector.h"
 
 #include <JuceHeader.h>
 
@@ -68,8 +69,8 @@ private:
     std::atomic<float>* driveParam = nullptr;
     std::atomic<float>* mixParam = nullptr;
     std::atomic<float>* outputParam = nullptr;
-    std::atomic<float>* bypassParam = nullptr;
     std::atomic<float>* warmthParam = nullptr;
+    juce::AudioParameterBool* bypassParam = nullptr;
 
     // Smoothed values for click-free parameter changes
     juce::SmoothedValue<float> driveSmoothed;
@@ -77,13 +78,13 @@ private:
     juce::SmoothedValue<float> gainSmoothed;
     juce::SmoothedValue<float> warmthSmoothed;
 
-    // RMS detector for Dynamic Bias (Task 003)
+    // RMS detector for Dynamic Bias (Task 003) — mono-summed, shared across channels
     GrainDSP::RMSDetector rmsDetector;
     float currentEnvelope = 0.0f;
 
-    // DC blockers for removing bias-induced DC offset (Task 004)
-    GrainDSP::DCBlocker dcBlockerLeft;
-    GrainDSP::DCBlocker dcBlockerRight;
+    // Per-channel DSP pipelines (Task 006b)
+    GrainDSP::DSPPipeline pipelineLeft;
+    GrainDSP::DSPPipeline pipelineRight;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)
