@@ -29,14 +29,24 @@ GRAIN/
 ├── tasks/                   # Implementation tasks (numbered)
 ├── Source/
 │   ├── DSP/
-│   │   └── GrainDSP.h       # Pure DSP functions (Task 002)
+│   │   ├── Constants.h          # All DSP constants (kTwoPi, kBiasAmount, etc.)
+│   │   ├── DSPHelpers.h         # Pure utility functions (calculateCoefficient, applyMix, applyGain)
+│   │   ├── RMSDetector.h        # RMS envelope follower (stateful)
+│   │   ├── DynamicBias.h        # Asymmetric bias function (pure)
+│   │   ├── Waveshaper.h         # tanh waveshaper (pure)
+│   │   ├── WarmthProcessor.h    # Warmth/asymmetry function (pure)
+│   │   ├── DCBlocker.h          # DC blocking filter (stateful, mono)
+│   │   └── GrainDSPPipeline.h   # Per-channel DSP pipeline orchestrator
 │   ├── Tests/
-│   │   └── DSPTests.cpp     # Unit tests
+│   │   ├── TestMain.cpp         # Console app entry point for test runner
+│   │   ├── DSPTests.cpp         # Unit tests (per-module)
+│   │   └── PipelineTest.cpp     # Integration tests (full pipeline)
 │   ├── PluginProcessor.h    # Audio processing logic
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
 │   └── PluginEditor.cpp
-├── GRAIN.jucer              # Projucer project file
+├── GRAIN.jucer              # Projucer project (VST3 + Standalone)
+├── GRAINTests.jucer         # Projucer project (ConsoleApp test runner)
 └── CLAUDE.md                # This file
 ```
 
@@ -47,25 +57,21 @@ GRAIN/
 Input (Drive) → RMS Detector → Dynamic Bias → tanh Waveshaper → Warmth → Focus → Output → Mix
 ```
 
-### MVP Pipeline (current)
+### Current Pipeline
 ```
-Input → Drive (1x-4x) → tanh() → Mix (dry/wet) → Output (dB)
-```
-
-### Pure DSP Functions
-
-Located in `Source/DSP/GrainDSP.h`:
-
-```cpp
-namespace GrainDSP
-{
-    float applyWaveshaper(float input, float drive);  // tanh saturation
-    float applyMix(float dry, float wet, float mix);  // dry/wet blend
-    float applyGain(float input, float gainLinear);   // output gain
-}
+Input → Dynamic Bias → tanh Waveshaper → Warmth → Mix (dry/wet) → DC Blocker → Output Gain
 ```
 
-**Bypass:** Implemented via mix smoothing (bypass ON → mix = 0). No separate bypass function.
+### DSP Module Architecture
+
+All DSP modules live in `Source/DSP/` as individual header files. Each module is either:
+- **Pure function** (stateless): `Waveshaper.h`, `DynamicBias.h`, `WarmthProcessor.h`, `DSPHelpers.h`
+- **Stateful struct** (mono, one instance per channel): `DCBlocker.h`, `RMSDetector.h`
+
+The `GrainDSPPipeline.h` orchestrates the full chain as a mono `DSPPipeline` struct.
+Stereo is managed by `PluginProcessor` creating two pipeline instances (L/R).
+
+**Bypass:** Implemented via `AudioParameterBool` + mix smoothing (bypass ON → mix target = 0).
 
 ## MVP Parameters
 
@@ -74,7 +80,8 @@ namespace GrainDSP
 | `drive` | Drive | 0.0–1.0 | 0.5 | Maps to 1x–4x gain |
 | `mix` | Mix | 0.0–1.0 | 0.2 | 0 = dry, 1 = wet |
 | `output` | Output | -12 to +12 dB | 0.0 | Final level trim |
-| `bypass` | Bypass | 0/1 | 0 | Via mix smoothing |
+| `warmth` | Warmth | 0.0–1.0 | 0.0 | Asymmetric even harmonics |
+| `bypass` | Bypass | bool | false | AudioParameterBool, via mix smoothing |
 
 ## Design Principles
 
@@ -118,13 +125,14 @@ $PLUGINVAL --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plu
 
 ### Unit Tests
 
-Tests run automatically when plugin loads in Debug mode:
+Tests run via a separate console application (GRAINTests.jucer):
 ```bash
-# Build and run Standalone (tests execute on load)
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - Standalone Plugin" -configuration Debug build
+# Build test runner
+xcodebuild -project Builds/MacOSX-Tests/GRAINTests.xcodeproj \
+  -scheme "GRAINTests - ConsoleApp" -configuration Debug build
 
-./Builds/MacOSX/build/Debug/GRAIN.app/Contents/MacOS/GRAIN
+# Run tests (returns exit code 0 on success, 1 on failure — CI-friendly)
+./Builds/MacOSX-Tests/build/Debug/GRAINTests
 ```
 
 ### Listening Tests Checklist
@@ -168,29 +176,45 @@ Run `./scripts/format.sh fix` before committing.
 
 ```bash
 # 1. Make changes
-2. Build
+
+# 2. Build VST3
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - VST3" -configuration Debug build
 
-# 3. Run pluginval
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# 3. Run unit tests
+xcodebuild -project Builds/MacOSX-Tests/GRAINTests.xcodeproj \
+  -scheme "GRAINTests - ConsoleApp" -configuration Debug build
+./Builds/MacOSX-Tests/build/Debug/GRAINTests
 
-# 4. If pass → test in DAW
-# 5. If pass → commit
+# 4. Run pluginval
+/Applications/pluginval.app/Contents/MacOS/pluginval \
+  --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+
+# 5. If pass → test in DAW
+# 6. If pass → commit
 ```
+
+> **Note:** After modifying `.jucer` files, run Projucer `--resave` to regenerate Xcode projects:
+> ```bash
+> /Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer --resave GRAIN.jucer
+> /Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer --resave GRAINTests.jucer
+> ```
 
 ## Build Commands
 
 ```bash
 # Build VST3
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - VST3" \
-  -configuration Debug build
+  -scheme "GRAIN - VST3" -configuration Debug build
 
 # Build Standalone
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - Standalone Plugin" \
-  -configuration Debug build
+  -scheme "GRAIN - Standalone Plugin" -configuration Debug build
+
+# Build & Run Tests
+xcodebuild -project Builds/MacOSX-Tests/GRAINTests.xcodeproj \
+  -scheme "GRAINTests - ConsoleApp" -configuration Debug build
+./Builds/MacOSX-Tests/build/Debug/GRAINTests
 ```
 
 ## Validation
@@ -202,22 +226,22 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- **Task 001:** Testing infrastructure (completed)
-  - pluginval setup
-  - Unit test scaffold with pure DSP functions
-  - 15 tests passing (Waveshaper, Mix, Gain, Bypass, Buffer, Discontinuity)
-
-- **Task 002:** MVP tanh waveshaper (next)
-  - Extract GrainDSP.h
-  - Implement APVTS parameters
-  - Per-sample smoothing in processBlock
+- 44 tests passing (40 unit + 4 pipeline integration)
+- VST3 + Standalone build clean
+- pluginval SUCCESS
+- Separate test target (GRAINTests.jucer) with CI-friendly exit codes
 
 ## Task Files
 
 | Task | Description | Status |
 |------|-------------|--------|
 | `tasks/001_setup_testing.md` | Testing infrastructure | Done |
-| `tasks/002_mvp_tanh_waveshaper.md` | MVP DSP implementation | Next |
+| `tasks/002_mvp_tanh_waveshaper.md` | MVP DSP implementation | Done |
+| `tasks/003_rms_detector.md` | RMS envelope detector | Done |
+| `tasks/004_dynamic_bias.md` | Dynamic bias for even harmonics | Done |
+| `tasks/005_warmth_control.md` | Warmth parameter | Done |
+| `tasks/006_spectral_focus.md` | Spectral focus (shelf EQ) | Done |
+| `tasks/006b_architecture_refactor.md` | Architecture refactor & test target | In Progress |
 
 ## Documentation
 

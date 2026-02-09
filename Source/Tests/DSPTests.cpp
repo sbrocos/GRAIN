@@ -1,4 +1,10 @@
-#include "../DSP/GrainDSP.h"
+#include "../DSP/Constants.h"
+#include "../DSP/DCBlocker.h"
+#include "../DSP/DSPHelpers.h"
+#include "../DSP/DynamicBias.h"
+#include "../DSP/RMSDetector.h"
+#include "../DSP/Waveshaper.h"
+#include "../DSP/WarmthProcessor.h"
 
 #include <JuceHeader.h>
 

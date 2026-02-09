@@ -8,25 +8,7 @@
 
 #include "PluginProcessor.h"
 
-#include "DSP/GrainDSP.h"
 // #include "PluginEditor.h"  // Not needed while using GenericAudioProcessorEditor
-#include "Tests/DSPTests.cpp"  // NOLINT(bugprone-suspicious-include)
-
-//==============================================================================
-// Debug-only test runner: runs unit tests when plugin loads
-#if JUCE_DEBUG
-namespace
-{
-struct TestRunner
-{
-    TestRunner()
-    {
-        juce::UnitTestRunner runner;
-        runner.runAllTests();
-    }
-} testRunner;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,cert-err58-cpp)
-}  // namespace
-#endif
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createParameterLayout()
@@ -42,8 +24,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createP
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("output", 1), "Output", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
 
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("bypass", 1), "Bypass", juce::NormalisableRange<float>(0.0f, 1.0f, 1.0f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID("bypass", 1), "Bypass", false));
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("warmth", 1), "Warmth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
@@ -66,8 +47,8 @@ GRAINAudioProcessor::GRAINAudioProcessor()
     , driveParam(apvts.getRawParameterValue("drive"))
     , mixParam(apvts.getRawParameterValue("mix"))
     , outputParam(apvts.getRawParameterValue("output"))
-    , bypassParam(apvts.getRawParameterValue("bypass"))
     , warmthParam(apvts.getRawParameterValue("warmth"))
+    , bypassParam(dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("bypass")))
 #endif
 {
 }
@@ -139,14 +120,13 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     driveSmoothed.reset(sampleRate, 0.02);
     mixSmoothed.reset(sampleRate, 0.02);
     gainSmoothed.reset(sampleRate, 0.02);
-
     warmthSmoothed.reset(sampleRate, 0.02);
 
     // Set initial values
     driveSmoothed.setCurrentAndTargetValue(*driveParam);
     warmthSmoothed.setCurrentAndTargetValue(*warmthParam);
 
-    const bool bypass = *bypassParam > 0.5f;
+    const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
     mixSmoothed.setCurrentAndTargetValue(targetMix);
 
@@ -157,11 +137,11 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     rmsDetector.reset();
     currentEnvelope = 0.0f;
 
-    // Initialize DC blockers (Task 004)
-    dcBlockerLeft.prepare(static_cast<float>(sampleRate));
-    dcBlockerLeft.reset();
-    dcBlockerRight.prepare(static_cast<float>(sampleRate));
-    dcBlockerRight.reset();
+    // Initialize per-channel pipelines (Task 006b)
+    pipelineLeft.prepare(static_cast<float>(sampleRate));
+    pipelineLeft.reset();
+    pipelineRight.prepare(static_cast<float>(sampleRate));
+    pipelineRight.reset();
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -214,7 +194,7 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     }
 
     // Bypass via mix: when bypassed, mix target = 0 (full dry)
-    const bool bypass = *bypassParam > 0.5f;
+    const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
     // Update targets at block start
@@ -245,17 +225,17 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         const float monoInput = (leftSample + rightSample) * 0.5f;
         currentEnvelope = rmsDetector.process(monoInput);
 
-        // Process each channel through the full DSP chain
+        // Process each channel through its own DSP pipeline
         if (leftChannel != nullptr)
         {
             leftChannel[sample] =
-                GrainDSP::processSample(leftSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerLeft);
+                pipelineLeft.processSample(leftSample, currentEnvelope, drive, warmth, mix, gain);
         }
 
         if (rightChannel != nullptr)
         {
             rightChannel[sample] =
-                GrainDSP::processSample(rightSample, currentEnvelope, drive, warmth, mix, gain, dcBlockerRight);
+                pipelineRight.processSample(rightSample, currentEnvelope, drive, warmth, mix, gain);
         }
     }
 }
