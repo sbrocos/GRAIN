@@ -12,6 +12,7 @@
         <FILE id="WaveshaperH" name="Waveshaper.h" compile="0" resource="0" file="Source/DSP/Waveshaper.h"/>
         <FILE id="WarmthProcessorH" name="WarmthProcessor.h" compile="0" resource="0" file="Source/DSP/WarmthProcessor.h"/>
         <FILE id="DCBlockerH" name="DCBlocker.h" compile="0" resource="0" file="Source/DSP/DCBlocker.h"/>
+        <FILE id="SpectralFocusH" name="SpectralFocus.h" compile="0" resource="0" file="Source/DSP/SpectralFocus.h"/>
         <FILE id="GrainDSPPipelineH" name="GrainDSPPipeline.h" compile="0" resource="0" file="Source/DSP/GrainDSPPipeline.h"/>
       </GROUP>
       <GROUP id="{9C5C20A9-6658-22EB-3E2E-F83B1C805EB5}" name="Tests">
