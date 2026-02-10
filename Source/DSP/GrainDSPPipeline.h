@@ -5,8 +5,8 @@
     Per-channel DSP pipeline orchestrator for GRAIN saturation processor.
     Each instance is mono — stereo is managed by creating two instances.
 
-    Signal chain:
-    Dynamic Bias → Waveshaper → Warmth → Spectral Focus → Mix → DC Blocker → Gain
+    Signal chain (with oversampling):
+    [Upsample] → Dynamic Bias → Waveshaper → Warmth → Focus → [Downsample] → Mix → DC Blocker → Gain
 
   ==============================================================================
 */
@@ -62,7 +62,41 @@ struct DSPPipeline
     }
 
     /**
-     * Process a single sample through the full DSP chain.
+     * Process the nonlinear ("wet") stages of the DSP chain.
+     * Runs at oversampled rate when oversampling is active.
+     * @param input Input sample
+     * @param envelope Current RMS envelope value from detector
+     * @param drive Normalized drive amount (0.0 - 1.0)
+     * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
+     * @return Wet (processed) output sample
+     */
+    float processWet(float input, float envelope, float drive, float warmth)
+    {
+        const float biased = applyDynamicBias(input, envelope, kBiasAmount);
+        const float shaped = applyWaveshaper(biased, drive);
+        const float warmed = applyWarmth(shaped, warmth);
+        return spectralFocus.process(warmed);
+    }
+
+    /**
+     * Process the linear stages: dry/wet mix, DC blocker, output gain.
+     * Runs at original sample rate (no need to oversample linear operations).
+     * @param dry The original dry signal
+     * @param wet The processed wet signal (from processWet, after downsampling)
+     * @param mix Mix amount (0.0 = full dry, 1.0 = full wet)
+     * @param gain Linear gain multiplier (1.0 = unity)
+     * @return Final output sample
+     */
+    float processMixGain(float dry, float wet, float mix, float gain)
+    {
+        const float mixed = applyMix(dry, wet, mix);
+        const float dcBlocked = dcBlocker.process(mixed);
+        return applyGain(dcBlocked, gain);
+    }
+
+    /**
+     * Process a single sample through the full DSP chain (convenience method).
+     * Combines processWet + processMixGain. Used when oversampling is not active.
      * @param dry The dry (unprocessed) input sample
      * @param envelope Current RMS envelope value from detector
      * @param drive Normalized drive amount (0.0 - 1.0)
@@ -73,13 +107,8 @@ struct DSPPipeline
      */
     float processSample(float dry, float envelope, float drive, float warmth, float mix, float gain)
     {
-        const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
-        const float shaped = applyWaveshaper(biased, drive);
-        const float warmed = applyWarmth(shaped, warmth);
-        const float focused = spectralFocus.process(warmed);
-        const float mixed = applyMix(dry, focused, mix);
-        const float dcBlocked = dcBlocker.process(mixed);
-        return applyGain(dcBlocked, gain);
+        const float wet = processWet(dry, envelope, drive, warmth);
+        return processMixGain(dry, wet, mix, gain);
     }
 };
 
