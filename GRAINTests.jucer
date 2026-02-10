@@ -26,6 +26,8 @@
             file="Source/DSP/WarmthProcessor.h"/>
       <FILE id="tDCBlockerH" name="DCBlocker.h" compile="0" resource="0"
             file="Source/DSP/DCBlocker.h"/>
+      <FILE id="tSpectralFocusH" name="SpectralFocus.h" compile="0" resource="0"
+            file="Source/DSP/SpectralFocus.h"/>
       <FILE id="tGrainDSPPipelineH" name="GrainDSPPipeline.h" compile="0" resource="0"
             file="Source/DSP/GrainDSPPipeline.h"/>
     </GROUP>

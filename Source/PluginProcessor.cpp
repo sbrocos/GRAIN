@@ -29,6 +29,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createP
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("warmth", 1), "Warmth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("focus", 1), "Focus",
+                                                                  juce::StringArray{"Low", "Mid", "High"}, 1));
+
     return {params.begin(), params.end()};
 }
 
@@ -49,6 +52,7 @@ GRAINAudioProcessor::GRAINAudioProcessor()
     , outputParam(apvts.getRawParameterValue("output"))
     , warmthParam(apvts.getRawParameterValue("warmth"))
     , bypassParam(dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("bypass")))
+    , focusParam(dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter("focus")))
 #endif
 {
 }
@@ -137,10 +141,12 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
     rmsDetector.reset();
     currentEnvelope = 0.0f;
 
-    // Initialize per-channel pipelines (Task 006b)
-    pipelineLeft.prepare(static_cast<float>(sampleRate));
+    // Initialize per-channel pipelines (Task 006b) with spectral focus (Task 006c)
+    const auto focusMode = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
+    lastFocusMode = focusMode;
+    pipelineLeft.prepare(static_cast<float>(sampleRate), focusMode);
     pipelineLeft.reset();
-    pipelineRight.prepare(static_cast<float>(sampleRate));
+    pipelineRight.prepare(static_cast<float>(sampleRate), focusMode);
     pipelineRight.reset();
 }
 
@@ -197,6 +203,16 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
+    // Check if focus mode changed (Task 006c) — recalculate coefficients, don't reset state
+    const auto currentFocus = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
+    if (currentFocus != lastFocusMode)
+    {
+        const float sr = static_cast<float>(getSampleRate());
+        pipelineLeft.setFocusMode(sr, currentFocus);
+        pipelineRight.setFocusMode(sr, currentFocus);
+        lastFocusMode = currentFocus;
+    }
+
     // Update targets at block start
     driveSmoothed.setTargetValue(*driveParam);
     warmthSmoothed.setTargetValue(*warmthParam);
@@ -228,14 +244,12 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         // Process each channel through its own DSP pipeline
         if (leftChannel != nullptr)
         {
-            leftChannel[sample] =
-                pipelineLeft.processSample(leftSample, currentEnvelope, drive, warmth, mix, gain);
+            leftChannel[sample] = pipelineLeft.processSample(leftSample, currentEnvelope, drive, warmth, mix, gain);
         }
 
         if (rightChannel != nullptr)
         {
-            rightChannel[sample] =
-                pipelineRight.processSample(rightSample, currentEnvelope, drive, warmth, mix, gain);
+            rightChannel[sample] = pipelineRight.processSample(rightSample, currentEnvelope, drive, warmth, mix, gain);
         }
     }
 }

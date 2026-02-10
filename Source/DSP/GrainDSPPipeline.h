@@ -6,7 +6,7 @@
     Each instance is mono — stereo is managed by creating two instances.
 
     Signal chain:
-    Dynamic Bias → Waveshaper → Warmth → Mix → DC Blocker → Gain
+    Dynamic Bias → Waveshaper → Warmth → Spectral Focus → Mix → DC Blocker → Gain
 
   ==============================================================================
 */
@@ -17,8 +17,9 @@
 #include "DCBlocker.h"
 #include "DSPHelpers.h"
 #include "DynamicBias.h"
-#include "Waveshaper.h"
+#include "SpectralFocus.h"
 #include "WarmthProcessor.h"
+#include "Waveshaper.h"
 
 namespace GrainDSP
 {
@@ -30,15 +31,26 @@ namespace GrainDSP
 struct DSPPipeline
 {
     DCBlocker dcBlocker;
+    SpectralFocus spectralFocus;
 
     /**
      * Prepare all stateful modules for a given sample rate.
      * @param sampleRate Sample rate in Hz
+     * @param focusMode Initial spectral focus mode
      */
-    void prepare(float sampleRate)
+    void prepare(float sampleRate, FocusMode focusMode = FocusMode::Mid)
     {
         dcBlocker.prepare(sampleRate);
+        spectralFocus.prepare(sampleRate, focusMode);
     }
+
+    /**
+     * Update spectral focus coefficients for a new mode.
+     * Does NOT reset filter state (avoids clicks on mode change).
+     * @param sampleRate Sample rate in Hz
+     * @param focusMode New spectral focus mode
+     */
+    void setFocusMode(float sampleRate, FocusMode focusMode) { spectralFocus.prepare(sampleRate, focusMode); }
 
     /**
      * Reset all stateful module states.
@@ -46,6 +58,7 @@ struct DSPPipeline
     void reset()
     {
         dcBlocker.reset();
+        spectralFocus.reset();
     }
 
     /**
@@ -63,7 +76,8 @@ struct DSPPipeline
         const float biased = applyDynamicBias(dry, envelope, kBiasAmount);
         const float shaped = applyWaveshaper(biased, drive);
         const float warmed = applyWarmth(shaped, warmth);
-        const float mixed = applyMix(dry, warmed, mix);
+        const float focused = spectralFocus.process(warmed);
+        const float mixed = applyMix(dry, focused, mix);
         const float dcBlocked = dcBlocker.process(mixed);
         return applyGain(dcBlocked, gain);
     }

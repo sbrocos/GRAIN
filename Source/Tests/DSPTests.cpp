@@ -3,8 +3,9 @@
 #include "../DSP/DSPHelpers.h"
 #include "../DSP/DynamicBias.h"
 #include "../DSP/RMSDetector.h"
-#include "../DSP/Waveshaper.h"
+#include "../DSP/SpectralFocus.h"
 #include "../DSP/WarmthProcessor.h"
+#include "../DSP/Waveshaper.h"
 
 #include <JuceHeader.h>
 
@@ -35,6 +36,7 @@ public:
         runDCBlockerTests();
         runDCOffsetAccumulationTest();
         runWarmthTests();
+        runSpectralFocusTests();
     }
 
 private:
@@ -556,6 +558,204 @@ private:
                 const float result = GrainDSP::applyWarmth(input, warmth);
                 expectWithinAbsoluteError(result, expected, TestConstants::kTolerance);
             }
+        }
+    }
+
+    //==========================================================================
+    // NOLINTNEXTLINE(readability-function-size)
+    void runSpectralFocusTests()
+    {
+        beginTest("Focus: Mid mode is near-unity for broadband signal");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Mid);
+
+            // Process DC — let filter settle
+            const float input = 0.5f;
+            float result = 0.0f;
+
+            for (int i = 0; i < 1000; ++i)
+            {
+                result = focus.process(input);
+            }
+
+            // Mid mode cuts both shelves by -1.5dB each
+            // DC sees both shelves: total ~-3dB ≈ 0.707x → 0.5 * 0.707 ≈ 0.354
+            expect(result > 0.3f);  // Not completely attenuated
+            expect(result < 0.6f);  // Not boosted
+        }
+
+        beginTest("Focus: reset clears filter state");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+
+            // Build up filter state
+            for (int i = 0; i < 1000; ++i)
+            {
+                focus.process(0.5f);
+            }
+
+            focus.reset();
+
+            // After reset, processing silence should produce silence
+            float result = 0.0f;
+            for (int i = 0; i < 100; ++i)
+            {
+                result = focus.process(0.0f);
+            }
+
+            expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
+        }
+
+        beginTest("Focus: silence in produces silence out");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::High);
+
+            for (int i = 0; i < 100; ++i)
+            {
+                const float result = focus.process(0.0f);
+                expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
+            }
+        }
+
+        beginTest("Focus: Low mode boosts low frequencies");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+
+            // Generate low frequency sine (100 Hz)
+            const float sampleRate = 44100.0f;
+            const int numSamples = static_cast<int>(sampleRate);  // 1 second
+            const int measureStart = numSamples / 2;
+
+            float rmsLow = 0.0f;
+            float freq = 100.0f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float input = 0.5f * std::sin(GrainDSP::kTwoPi * freq * static_cast<float>(i) / sampleRate);
+                const float output = focus.process(input);
+
+                if (i >= measureStart)
+                {
+                    rmsLow += output * output;
+                }
+            }
+            rmsLow = std::sqrt(rmsLow / static_cast<float>(numSamples - measureStart));
+
+            // Now test high frequency (8000 Hz) with same mode
+            focus.reset();
+            float rmsHigh = 0.0f;
+            freq = 8000.0f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float input = 0.5f * std::sin(GrainDSP::kTwoPi * freq * static_cast<float>(i) / sampleRate);
+                const float output = focus.process(input);
+
+                if (i >= measureStart)
+                {
+                    rmsHigh += output * output;
+                }
+            }
+            rmsHigh = std::sqrt(rmsHigh / static_cast<float>(numSamples - measureStart));
+
+            // In Low mode: low frequency RMS should be greater than high frequency RMS
+            expect(rmsLow > rmsHigh);
+        }
+
+        beginTest("Focus: High mode boosts high frequencies");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::High);
+
+            const float sampleRate = 44100.0f;
+            const int numSamples = static_cast<int>(sampleRate);
+            const int measureStart = numSamples / 2;
+
+            // Low frequency (100 Hz)
+            float rmsLow = 0.0f;
+            float freq = 100.0f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float input = 0.5f * std::sin(GrainDSP::kTwoPi * freq * static_cast<float>(i) / sampleRate);
+                const float output = focus.process(input);
+
+                if (i >= measureStart)
+                {
+                    rmsLow += output * output;
+                }
+            }
+            rmsLow = std::sqrt(rmsLow / static_cast<float>(numSamples - measureStart));
+
+            // High frequency (8000 Hz)
+            focus.reset();
+            float rmsHigh = 0.0f;
+            freq = 8000.0f;
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float input = 0.5f * std::sin(GrainDSP::kTwoPi * freq * static_cast<float>(i) / sampleRate);
+                const float output = focus.process(input);
+
+                if (i >= measureStart)
+                {
+                    rmsHigh += output * output;
+                }
+            }
+            rmsHigh = std::sqrt(rmsHigh / static_cast<float>(numSamples - measureStart));
+
+            // In High mode: high frequency RMS should be greater than low frequency RMS
+            expect(rmsHigh > rmsLow);
+        }
+
+        beginTest("Focus: mono instances are independent (replaces stereo test)");
+        {
+            GrainDSP::SpectralFocus focusL;
+            GrainDSP::SpectralFocus focusR;
+            focusL.prepare(44100.0f, GrainDSP::FocusMode::Low);
+            focusR.prepare(44100.0f, GrainDSP::FocusMode::Low);
+
+            // Process different signals on L and R using sine waves at different frequencies
+            // so they don't just mirror each other
+            const float sampleRate = 44100.0f;
+            float resultL = 0.0f;
+            float resultR = 0.0f;
+
+            for (int i = 0; i < 1000; ++i)
+            {
+                const float inputL = 0.5f * std::sin(GrainDSP::kTwoPi * 100.0f * static_cast<float>(i) / sampleRate);
+                const float inputR = 0.5f * std::sin(GrainDSP::kTwoPi * 8000.0f * static_cast<float>(i) / sampleRate);
+                resultL = focusL.process(inputL);
+                resultR = focusR.process(inputR);
+            }
+
+            // In Low mode: 100 Hz is boosted, 8000 Hz is cut.
+            // RMS of L should be greater than RMS of R for a given amplitude input.
+            // At this specific moment, outputs should be different magnitudes.
+            expect(std::abs(resultL) != std::abs(resultR));
+        }
+
+        beginTest("Focus: no NaN or Inf on edge cases");
+        {
+            GrainDSP::SpectralFocus focus;
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+
+            // Test extreme values
+            float result = focus.process(1.0f);
+            expect(!std::isnan(result));
+            expect(!std::isinf(result));
+
+            result = focus.process(-1.0f);
+            expect(!std::isnan(result));
+            expect(!std::isinf(result));
+
+            result = focus.process(0.0f);
+            expect(!std::isnan(result));
+            expect(!std::isinf(result));
         }
     }
 

@@ -116,8 +116,10 @@ private:
         float inputRms = std::sqrt(inputRmsSum / static_cast<float>(numSamples));
 
         // At low settings, output should be within ~3dB of input
-        expect(outputRms > inputRms * 0.5f, "Output too quiet: " + juce::String(outputRms) + " < " + juce::String(inputRms * 0.5f));
-        expect(outputRms < inputRms * 2.0f, "Output too loud: " + juce::String(outputRms) + " > " + juce::String(inputRms * 2.0f));
+        expect(outputRms > inputRms * 0.5f,
+               "Output too quiet: " + juce::String(outputRms) + " < " + juce::String(inputRms * 0.5f));
+        expect(outputRms < inputRms * 2.0f,
+               "Output too loud: " + juce::String(outputRms) + " > " + juce::String(inputRms * 2.0f));
     }
 };
 

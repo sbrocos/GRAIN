@@ -10,6 +10,7 @@
 
 #include "DSP/GrainDSPPipeline.h"
 #include "DSP/RMSDetector.h"
+#include "DSP/SpectralFocus.h"
 
 #include <JuceHeader.h>
 
@@ -71,6 +72,7 @@ private:
     std::atomic<float>* outputParam = nullptr;
     std::atomic<float>* warmthParam = nullptr;
     juce::AudioParameterBool* bypassParam = nullptr;
+    juce::AudioParameterChoice* focusParam = nullptr;
 
     // Smoothed values for click-free parameter changes
     juce::SmoothedValue<float> driveSmoothed;
@@ -85,6 +87,9 @@ private:
     // Per-channel DSP pipelines (Task 006b)
     GrainDSP::DSPPipeline pipelineLeft;
     GrainDSP::DSPPipeline pipelineRight;
+
+    // Spectral Focus mode tracking (Task 006c)
+    GrainDSP::FocusMode lastFocusMode = GrainDSP::FocusMode::Mid;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)

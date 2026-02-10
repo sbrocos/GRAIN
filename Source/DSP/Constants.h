@@ -34,8 +34,8 @@ constexpr float kWarmthDepth = 0.22f;  // Maximum effect depth (22%) - calibrate
 //==============================================================================
 // Spectral Focus constants (Task 006)
 constexpr float kFocusLowShelfFreq = 200.0f;    // Hz
-constexpr float kFocusHighShelfFreq = 4000.0f;   // Hz
-constexpr float kFocusShelfGainDb = 3.0f;        // dB (max boost/cut)
-constexpr float kFocusShelfQ = 0.707f;           // Butterworth Q
+constexpr float kFocusHighShelfFreq = 4000.0f;  // Hz
+constexpr float kFocusShelfGainDb = 3.0f;       // dB (max boost/cut)
+constexpr float kFocusShelfQ = 0.707f;          // Butterworth Q
 
 }  // namespace GrainDSP
