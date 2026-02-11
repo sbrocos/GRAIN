@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#include "../DSP/Constants.h"
+#include "../DSP/CalibrationConfig.h"
 #include "../DSP/GrainDSPPipeline.h"
 
 #include <JuceHeader.h>
@@ -35,7 +35,7 @@ private:
         beginTest("Pipeline: silence in produces silence out");
 
         GrainDSP::DSPPipeline pipeline;
-        pipeline.prepare(44100.0f);
+        pipeline.prepare(44100.0f, GrainDSP::FocusMode::Mid, GrainDSP::kDefaultCalibration);
 
         for (int i = 0; i < 512; ++i)
         {
@@ -50,7 +50,7 @@ private:
         beginTest("Pipeline: mix=0 returns dry signal (sine)");
 
         GrainDSP::DSPPipeline pipeline;
-        pipeline.prepare(44100.0f);
+        pipeline.prepare(44100.0f, GrainDSP::FocusMode::Mid, GrainDSP::kDefaultCalibration);
 
         // Use a sine wave instead of DC to avoid DC blocker convergence to 0
         float rmsInput = 0.0f;
@@ -79,7 +79,7 @@ private:
         beginTest("Pipeline: no NaN/Inf on extreme input");
 
         GrainDSP::DSPPipeline pipeline;
-        pipeline.prepare(44100.0f);
+        pipeline.prepare(44100.0f, GrainDSP::FocusMode::Mid, GrainDSP::kDefaultCalibration);
 
         std::array<float, 6> extremes = {0.0f, 1.0f, -1.0f, 100.0f, -100.0f, 1e-30f};
         for (float input : extremes)
@@ -96,7 +96,7 @@ private:
         beginTest("Pipeline: output level approximately matches input at low settings");
 
         GrainDSP::DSPPipeline pipeline;
-        pipeline.prepare(44100.0f);
+        pipeline.prepare(44100.0f, GrainDSP::FocusMode::Mid, GrainDSP::kDefaultCalibration);
 
         // Low drive, full mix, unity gain
         float rmsSum = 0.0f;

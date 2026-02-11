@@ -1,4 +1,4 @@
-#include "../DSP/Constants.h"
+#include "../DSP/CalibrationConfig.h"
 #include "../DSP/DCBlocker.h"
 #include "../DSP/DSPHelpers.h"
 #include "../DSP/DynamicBias.h"
@@ -40,6 +40,13 @@ public:
     }
 
 private:
+    // Default calibration sub-configs for convenience
+    static constexpr auto kBiasCal = GrainDSP::kDefaultCalibration.bias;
+    static constexpr auto kWarmthCal = GrainDSP::kDefaultCalibration.warmth;
+    static constexpr auto kDCBlockerCal = GrainDSP::kDefaultCalibration.dcBlocker;
+    static constexpr auto kFocusCal = GrainDSP::kDefaultCalibration.focus;
+    static constexpr auto kRMSCal = GrainDSP::kDefaultCalibration.rms;
+
     //==========================================================================
     void runWaveshaperTests()
     {
@@ -246,7 +253,7 @@ private:
         beginTest("RMS Detector: zero input produces zero output");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             for (int i = 0; i < 1000; ++i)
             {
@@ -260,7 +267,7 @@ private:
         beginTest("RMS Detector: DC input converges to that value");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             const float constantInput = 0.5f;
             float result = 0.0f;
@@ -279,7 +286,7 @@ private:
         beginTest("RMS Detector: sine wave converges near RMS value");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             const float amplitude = 1.0f;
             const float frequency = 440.0f;
@@ -306,7 +313,7 @@ private:
         beginTest("RMS Detector: envelope is always non-negative");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             // Test with negative input
             for (int i = 0; i < 100; ++i)
@@ -319,7 +326,7 @@ private:
         beginTest("RMS Detector: slow response to transients");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             // Start with silence
             for (int i = 0; i < 100; ++i)
@@ -337,7 +344,7 @@ private:
         beginTest("RMS Detector: reset clears state");
         {
             GrainDSP::RMSDetector detector;
-            detector.prepare(44100.0f, 100.0f, 300.0f);
+            detector.prepare(44100.0f, kRMSCal);
 
             // Build up envelope
             for (int i = 0; i < 1000; ++i)
@@ -359,36 +366,36 @@ private:
         beginTest("Dynamic Bias: zero RMS produces no bias");
         {
             const float input = 0.5f;
-            const float result = GrainDSP::applyDynamicBias(input, 0.0f, 1.0f);
+            const float result = GrainDSP::applyDynamicBias(input, 0.0f, 1.0f, kBiasCal);
             expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
         }
 
         beginTest("Dynamic Bias: zero amount produces no bias");
         {
             const float input = 0.5f;
-            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 0.0f);
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 0.0f, kBiasCal);
             expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
         }
 
         beginTest("Dynamic Bias: positive input biased upward");
         {
             const float input = 0.5f;
-            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f);
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f, kBiasCal);
             expect(result > input);
         }
 
         beginTest("Dynamic Bias: negative input biased upward (asymmetry)");
         {
             const float input = -0.5f;
-            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f);
+            const float result = GrainDSP::applyDynamicBias(input, 0.5f, 1.0f, kBiasCal);
             // Quadratic term (-0.5)^2 = 0.25, bias is positive -> shifts toward positive
             expect(result > input);
         }
 
         beginTest("Dynamic Bias: asymmetric response (even harmonics)");
         {
-            const float resultPositive = GrainDSP::applyDynamicBias(0.5f, 0.5f, 1.0f);
-            const float resultNegative = GrainDSP::applyDynamicBias(-0.5f, 0.5f, 1.0f);
+            const float resultPositive = GrainDSP::applyDynamicBias(0.5f, 0.5f, 1.0f, kBiasCal);
+            const float resultNegative = GrainDSP::applyDynamicBias(-0.5f, 0.5f, 1.0f, kBiasCal);
             // Asymmetry: |result for +0.5| should NOT equal |result for -0.5|
             expect(std::abs(resultPositive) != std::abs(resultNegative));
         }
@@ -396,8 +403,8 @@ private:
         beginTest("Dynamic Bias: higher RMS produces more bias");
         {
             const float input = 0.5f;
-            const float resultLowRMS = GrainDSP::applyDynamicBias(input, 0.1f, 1.0f);
-            const float resultHighRMS = GrainDSP::applyDynamicBias(input, 0.9f, 1.0f);
+            const float resultLowRMS = GrainDSP::applyDynamicBias(input, 0.1f, 1.0f, kBiasCal);
+            const float resultHighRMS = GrainDSP::applyDynamicBias(input, 0.9f, 1.0f, kBiasCal);
 
             const float deviationLow = std::abs(resultLowRMS - input);
             const float deviationHigh = std::abs(resultHighRMS - input);
@@ -407,10 +414,10 @@ private:
         beginTest("Dynamic Bias: effect is subtle (bounded)");
         {
             const float input = 1.0f;
-            const float result = GrainDSP::applyDynamicBias(input, 1.0f, 1.0f);
-            // Even at extreme settings, should stay within kBiasScale (10%) of input
-            expect(result <= input * (1.0f + GrainDSP::kBiasScale));
-            expect(result >= input * (1.0f - GrainDSP::kBiasScale));
+            const float result = GrainDSP::applyDynamicBias(input, 1.0f, 1.0f, kBiasCal);
+            // Even at extreme settings, should stay within bias scale (10%) of input
+            expect(result <= input * (1.0f + kBiasCal.scale));
+            expect(result >= input * (1.0f - kBiasCal.scale));
         }
     }
 
@@ -420,7 +427,7 @@ private:
         beginTest("DC Blocker: passes AC signal");
         {
             GrainDSP::DCBlocker blocker;
-            blocker.prepare(44100.0f);
+            blocker.prepare(44100.0f, kDCBlockerCal);
 
             const float frequency = 440.0f;
             const float sampleRate = 44100.0f;
@@ -451,7 +458,7 @@ private:
         beginTest("DC Blocker: removes DC offset");
         {
             GrainDSP::DCBlocker blocker;
-            blocker.prepare(44100.0f);
+            blocker.prepare(44100.0f, kDCBlockerCal);
 
             // Feed constant DC value
             float output = 0.0f;
@@ -467,7 +474,7 @@ private:
         beginTest("DC Blocker: reset clears state");
         {
             GrainDSP::DCBlocker blocker;
-            blocker.prepare(44100.0f);
+            blocker.prepare(44100.0f, kDCBlockerCal);
 
             // Build up state
             for (int i = 0; i < 1000; ++i)
@@ -488,20 +495,20 @@ private:
         beginTest("Warmth: zero warmth returns input unchanged");
         {
             const float input = 0.5f;
-            const float result = GrainDSP::applyWarmth(input, 0.0f);
+            const float result = GrainDSP::applyWarmth(input, 0.0f, kWarmthCal);
             expectWithinAbsoluteError(result, input, TestConstants::kTolerance);
         }
 
         beginTest("Warmth: zero input returns zero");
         {
-            const float result = GrainDSP::applyWarmth(0.0f, 1.0f);
+            const float result = GrainDSP::applyWarmth(0.0f, 1.0f, kWarmthCal);
             expectWithinAbsoluteError(result, 0.0f, TestConstants::kTolerance);
         }
 
         beginTest("Warmth: effect is subtle (bounded)");
         {
             const float input = 0.5f;
-            const float result = GrainDSP::applyWarmth(input, 1.0f);
+            const float result = GrainDSP::applyWarmth(input, 1.0f, kWarmthCal);
 
             // Maximum deviation should be within kWarmthDepth (22%)
             const float deviation = std::abs(result - input);
@@ -511,8 +518,8 @@ private:
         beginTest("Warmth: positive input shifts toward asymmetry");
         {
             const float input = 0.5f;
-            const float noWarmth = GrainDSP::applyWarmth(input, 0.0f);
-            const float fullWarmth = GrainDSP::applyWarmth(input, 1.0f);
+            const float noWarmth = GrainDSP::applyWarmth(input, 0.0f, kWarmthCal);
+            const float fullWarmth = GrainDSP::applyWarmth(input, 1.0f, kWarmthCal);
 
             expect(std::abs(fullWarmth - noWarmth) > TestConstants::kTolerance);
         }
@@ -521,8 +528,8 @@ private:
         {
             const float warmth = 1.0f;
 
-            const float resultPos = GrainDSP::applyWarmth(0.5f, warmth);
-            const float resultNeg = GrainDSP::applyWarmth(-0.5f, warmth);
+            const float resultPos = GrainDSP::applyWarmth(0.5f, warmth, kWarmthCal);
+            const float resultNeg = GrainDSP::applyWarmth(-0.5f, warmth, kWarmthCal);
 
             const float deviationPos = std::abs(resultPos - 0.5f);
             const float deviationNeg = std::abs(resultNeg - (-0.5f));
@@ -534,11 +541,11 @@ private:
         beginTest("Warmth: continuous across warmth range");
         {
             const float input = 0.5f;
-            float prev = GrainDSP::applyWarmth(input, 0.0f);
+            float prev = GrainDSP::applyWarmth(input, 0.0f, kWarmthCal);
 
             for (float w = 0.1f; w <= 1.0f; w += 0.1f)
             {
-                const float current = GrainDSP::applyWarmth(input, w);
+                const float current = GrainDSP::applyWarmth(input, w, kWarmthCal);
                 const float delta = std::abs(current - prev);
 
                 expect(delta < 0.05f);
@@ -551,11 +558,11 @@ private:
             const float warmth = 0.7f;
             const float input = 0.5f;
 
-            const float expected = GrainDSP::applyWarmth(input, warmth);
+            const float expected = GrainDSP::applyWarmth(input, warmth, kWarmthCal);
 
             for (int i = 0; i < TestConstants::kBufferSize; ++i)
             {
-                const float result = GrainDSP::applyWarmth(input, warmth);
+                const float result = GrainDSP::applyWarmth(input, warmth, kWarmthCal);
                 expectWithinAbsoluteError(result, expected, TestConstants::kTolerance);
             }
         }
@@ -568,7 +575,7 @@ private:
         beginTest("Focus: Mid mode is near-unity for broadband signal");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Mid);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Mid, kFocusCal);
 
             // Process DC — let filter settle
             const float input = 0.5f;
@@ -588,7 +595,7 @@ private:
         beginTest("Focus: reset clears filter state");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
 
             // Build up filter state
             for (int i = 0; i < 1000; ++i)
@@ -611,7 +618,7 @@ private:
         beginTest("Focus: silence in produces silence out");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::High);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::High, kFocusCal);
 
             for (int i = 0; i < 100; ++i)
             {
@@ -623,7 +630,7 @@ private:
         beginTest("Focus: Low mode boosts low frequencies");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
 
             // Generate low frequency sine (100 Hz)
             const float sampleRate = 44100.0f;
@@ -669,7 +676,7 @@ private:
         beginTest("Focus: High mode boosts high frequencies");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::High);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::High, kFocusCal);
 
             const float sampleRate = 44100.0f;
             const int numSamples = static_cast<int>(sampleRate);
@@ -716,8 +723,8 @@ private:
         {
             GrainDSP::SpectralFocus focusL;
             GrainDSP::SpectralFocus focusR;
-            focusL.prepare(44100.0f, GrainDSP::FocusMode::Low);
-            focusR.prepare(44100.0f, GrainDSP::FocusMode::Low);
+            focusL.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
+            focusR.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
 
             // Process different signals on L and R using sine waves at different frequencies
             // so they don't just mirror each other
@@ -742,7 +749,7 @@ private:
         beginTest("Focus: no NaN or Inf on edge cases");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
 
             // Test extreme values
             float result = focus.process(1.0f);
@@ -765,7 +772,7 @@ private:
         beginTest("DC Offset: bias + DC blocker pipeline has near-zero mean");
         {
             GrainDSP::DCBlocker blocker;
-            blocker.prepare(44100.0f);
+            blocker.prepare(44100.0f, kDCBlockerCal);
 
             const float frequency = 440.0f;
             const float sampleRate = 44100.0f;
@@ -777,7 +784,7 @@ private:
             {
                 const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i) / sampleRate;
                 const float input = std::sin(phase);
-                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
+                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount, kBiasCal);
                 blocker.process(biased);
             }
 
@@ -788,7 +795,7 @@ private:
             {
                 const float phase = GrainDSP::kTwoPi * frequency * static_cast<float>(i + 500) / sampleRate;
                 const float input = std::sin(phase);
-                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount);
+                const float biased = GrainDSP::applyDynamicBias(input, rmsLevel, biasAmount, kBiasCal);
                 sum += blocker.process(biased);
             }
 

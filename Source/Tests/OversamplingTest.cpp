@@ -8,7 +8,7 @@
   ==============================================================================
 */
 
-#include "../DSP/Constants.h"
+#include "../DSP/DSPHelpers.h"
 
 #include <juce_dsp/juce_dsp.h>
 

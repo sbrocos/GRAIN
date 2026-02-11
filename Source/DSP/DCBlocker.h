@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Constants.h"
+#include "CalibrationConfig.h"
 
 namespace GrainDSP
 {
@@ -28,8 +28,13 @@ struct DCBlocker
     /**
      * Prepare the DC blocker for a given sample rate.
      * @param sampleRate Sample rate in Hz
+     * @param cal DC blocker calibration parameters
      */
-    void prepare(float sampleRate) { coeff = 1.0f - (kTwoPi * kDCBlockerCutoffHz / sampleRate); }
+    void prepare(float sampleRate, const DCBlockerCalibration& cal)
+    {
+        constexpr float kTwoPi = 6.283185307f;
+        coeff = 1.0f - (kTwoPi * cal.cutoffHz / sampleRate);
+    }
 
     /**
      * Reset the DC blocker state.

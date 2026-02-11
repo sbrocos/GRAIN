@@ -14,6 +14,11 @@
 namespace GrainDSP
 {
 //==============================================================================
+// Math constants (moved from Constants.h during Task 007b)
+constexpr float kTwoPi = 6.283185307f;
+constexpr float kPi = 3.141592653f;
+
+//==============================================================================
 /**
  * Stateless helper for calculating one-pole filter coefficient.
  * @param sampleRate Sample rate in Hz

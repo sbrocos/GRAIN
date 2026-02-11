@@ -12,10 +12,12 @@
             file="Source/Tests/PipelineTest.cpp"/>
       <FILE id="OversamplingTestCpp" name="OversamplingTest.cpp" compile="1"
             resource="0" file="Source/Tests/OversamplingTest.cpp"/>
+      <FILE id="CalibrationTestCpp" name="CalibrationTest.cpp" compile="1"
+            resource="0" file="Source/Tests/CalibrationTest.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
-      <FILE id="tConstantsH" name="Constants.h" compile="0" resource="0"
-            file="Source/DSP/Constants.h"/>
+      <FILE id="tCalibrationConfigH" name="CalibrationConfig.h" compile="0"
+            resource="0" file="Source/DSP/CalibrationConfig.h"/>
       <FILE id="tDSPHelpersH" name="DSPHelpers.h" compile="0" resource="0"
             file="Source/DSP/DSPHelpers.h"/>
       <FILE id="tRMSDetectorH" name="RMSDetector.h" compile="0" resource="0"

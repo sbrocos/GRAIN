@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include "Constants.h"
+#include "CalibrationConfig.h"
 
 #include <cmath>
 
@@ -79,8 +79,9 @@ struct SpectralFocus
      * (call reset() explicitly if needed).
      * @param sampleRate Sample rate in Hz
      * @param mode Focus mode (Low, Mid, High)
+     * @param cal Focus calibration parameters
      */
-    void prepare(float sampleRate, FocusMode mode)
+    void prepare(float sampleRate, FocusMode mode, const FocusCalibration& cal)
     {
         float lowGainDb = 0.0f;
         float highGainDb = 0.0f;
@@ -88,23 +89,23 @@ struct SpectralFocus
         switch (mode)
         {
             case FocusMode::Low:
-                lowGainDb = kFocusShelfGainDb;    // +3 dB
-                highGainDb = -kFocusShelfGainDb;  // -3 dB
+                lowGainDb = cal.shelfGainDb;    // +3 dB
+                highGainDb = -cal.shelfGainDb;  // -3 dB
                 break;
 
             case FocusMode::Mid:
-                lowGainDb = -kFocusShelfGainDb * 0.5f;   // -1.5 dB
-                highGainDb = -kFocusShelfGainDb * 0.5f;  // -1.5 dB
+                lowGainDb = -cal.shelfGainDb * 0.5f;   // -1.5 dB
+                highGainDb = -cal.shelfGainDb * 0.5f;  // -1.5 dB
                 break;
 
             case FocusMode::High:
-                lowGainDb = -kFocusShelfGainDb;  // -3 dB
-                highGainDb = kFocusShelfGainDb;  // +3 dB
+                lowGainDb = -cal.shelfGainDb;  // -3 dB
+                highGainDb = cal.shelfGainDb;  // +3 dB
                 break;
         }
 
-        const auto lowCoeffs = calculateLowShelf(sampleRate, kFocusLowShelfFreq, kFocusShelfQ, lowGainDb);
-        const auto highCoeffs = calculateHighShelf(sampleRate, kFocusHighShelfFreq, kFocusShelfQ, highGainDb);
+        const auto lowCoeffs = calculateLowShelf(sampleRate, cal.lowShelfFreq, cal.shelfQ, lowGainDb);
+        const auto highCoeffs = calculateHighShelf(sampleRate, cal.highShelfFreq, cal.shelfQ, highGainDb);
 
         lowShelf.b0 = lowCoeffs.b0;
         lowShelf.b1 = lowCoeffs.b1;
@@ -152,6 +153,7 @@ private:
      */
     static Coefficients calculateLowShelf(float sampleRate, float freq, float q, float gainDb)
     {
+        constexpr float kTwoPi = 6.283185307f;
         const float kA = std::pow(10.0f, gainDb / 40.0f);
         const float w0 = kTwoPi * freq / sampleRate;
         const float cosw0 = std::cos(w0);
@@ -177,6 +179,7 @@ private:
      */
     static Coefficients calculateHighShelf(float sampleRate, float freq, float q, float gainDb)
     {
+        constexpr float kTwoPi = 6.283185307f;
         const float kA = std::pow(10.0f, gainDb / 40.0f);
         const float w0 = kTwoPi * freq / sampleRate;
         const float cosw0 = std::cos(w0);
