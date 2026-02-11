@@ -36,11 +36,13 @@ GRAIN/
 │   │   ├── Waveshaper.h         # tanh waveshaper (pure)
 │   │   ├── WarmthProcessor.h    # Warmth/asymmetry function (pure)
 │   │   ├── DCBlocker.h          # DC blocking filter (stateful, mono)
+│   │   ├── SpectralFocus.h      # Biquad shelf EQ for spectral focus (stateful, mono)
 │   │   └── GrainDSPPipeline.h   # Per-channel DSP pipeline orchestrator
 │   ├── Tests/
 │   │   ├── TestMain.cpp         # Console app entry point for test runner
 │   │   ├── DSPTests.cpp         # Unit tests (per-module)
-│   │   └── PipelineTest.cpp     # Integration tests (full pipeline)
+│   │   ├── PipelineTest.cpp     # Integration tests (full pipeline)
+│   │   └── OversamplingTest.cpp # Oversampling unit tests
 │   ├── PluginProcessor.h    # Audio processing logic
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
@@ -55,21 +57,20 @@ GRAIN/
 
 ## DSP Architecture
 
-### Full Pipeline (future)
+### Current Pipeline (with oversampling)
 ```
-Input (Drive) → RMS Detector → Dynamic Bias → tanh Waveshaper → Warmth → Focus → Output → Mix
+Input → [Upsample] → Dynamic Bias → tanh Waveshaper → Warmth → Focus → [Downsample] → Mix (dry/wet) → DC Blocker → Output Gain
 ```
 
-### Current Pipeline
-```
-Input → Dynamic Bias → tanh Waveshaper → Warmth → Mix (dry/wet) → DC Blocker → Output Gain
-```
+- Nonlinear stages (Bias → Waveshaper → Warmth → Focus) run at **oversampled rate**
+- Linear stages (Mix → DC Blocker → Gain) run at **original rate**
+- 2× oversampling in real-time, 4× in offline bounce (`isNonRealtime()`)
 
 ### DSP Module Architecture
 
 All DSP modules live in `Source/DSP/` as individual header files. Each module is either:
 - **Pure function** (stateless): `Waveshaper.h`, `DynamicBias.h`, `WarmthProcessor.h`, `DSPHelpers.h`
-- **Stateful struct** (mono, one instance per channel): `DCBlocker.h`, `RMSDetector.h`
+- **Stateful struct** (mono, one instance per channel): `DCBlocker.h`, `RMSDetector.h`, `SpectralFocus.h`
 
 The `GrainDSPPipeline.h` orchestrates the full chain as a mono `DSPPipeline` struct.
 Stereo is managed by `PluginProcessor` creating two pipeline instances (L/R).
@@ -85,6 +86,7 @@ Stereo is managed by `PluginProcessor` creating two pipeline instances (L/R).
 | `output` | Output | -12 to +12 dB | 0.0 | Final level trim |
 | `warmth` | Warmth | 0.0–1.0 | 0.0 | Asymmetric even harmonics |
 | `bypass` | Bypass | bool | false | AudioParameterBool, via mix smoothing |
+| `focus` | Focus | Low/Mid/High | Mid | Spectral focus shelf EQ (AudioParameterChoice) |
 
 ## Design Principles
 
@@ -201,10 +203,12 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 # 6. If pass → commit
 ```
 
-> **Note:** After modifying `.jucer` files, run Projucer `--resave` to regenerate Xcode projects:
+> **Note:** After modifying `.jucer` files, run Projucer `--resave` to regenerate Xcode projects.
+> **Important:** Resave GRAINTests.jucer FIRST, then GRAIN.jucer — they share the `JuceLibraryCode/` directory,
+> and GRAIN.jucer has the full module set that must win.
 > ```bash
-> /Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer --resave GRAIN.jucer
 > /Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer --resave GRAINTests.jucer
+> /Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer --resave GRAIN.jucer
 > ```
 
 ## Build Commands
@@ -231,9 +235,10 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- 44 tests passing (40 unit + 4 pipeline integration)
+- 56 tests passing (47 unit + 4 pipeline integration + 5 oversampling)
 - VST3 + Standalone build clean
 - pluginval SUCCESS
+- Internal oversampling: 2× real-time, 4× offline bounce
 - Separate test target (GRAINTests.jucer) with CI-friendly exit codes
 
 ## Task Files
@@ -247,6 +252,8 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | `tasks/005_warmth_control.md` | Warmth parameter | Done |
 | `tasks/006_spectral_focus.md` | Spectral focus (shelf EQ) | Done |
 | `tasks/006b_architecture_refactor.md` | Architecture refactor & test target | Done |
+| `tasks/006c_spectral_focus_reimpl.md` | Spectral focus mono module reimplementation | Done |
+| `tasks/007_oversampling.md` | Internal oversampling (2×/4×) | Done |
 
 ## Documentation
 

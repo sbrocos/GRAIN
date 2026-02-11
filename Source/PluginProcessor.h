@@ -12,6 +12,8 @@
 #include "DSP/RMSDetector.h"
 #include "DSP/SpectralFocus.h"
 
+#include <juce_dsp/juce_dsp.h>
+
 #include <JuceHeader.h>
 
 //==============================================================================
@@ -90,6 +92,11 @@ private:
 
     // Spectral Focus mode tracking (Task 006c)
     GrainDSP::FocusMode lastFocusMode = GrainDSP::FocusMode::Mid;
+
+    // Internal oversampling (Task 007)
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
+    int currentOversamplingOrder = 1;    // 2^1 = 2× real-time, 2^2 = 4× offline
+    juce::AudioBuffer<float> dryBuffer;  // Pre-allocated dry signal copy
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)

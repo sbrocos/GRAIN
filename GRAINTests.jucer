@@ -10,6 +10,8 @@
             file="Source/Tests/DSPTests.cpp"/>
       <FILE id="PipelineTestCpp" name="PipelineTest.cpp" compile="1" resource="0"
             file="Source/Tests/PipelineTest.cpp"/>
+      <FILE id="OversamplingTestCpp" name="OversamplingTest.cpp" compile="1"
+            resource="0" file="Source/Tests/OversamplingTest.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
       <FILE id="tConstantsH" name="Constants.h" compile="0" resource="0"
@@ -28,13 +30,16 @@
             file="Source/DSP/DCBlocker.h"/>
       <FILE id="tSpectralFocusH" name="SpectralFocus.h" compile="0" resource="0"
             file="Source/DSP/SpectralFocus.h"/>
-      <FILE id="tGrainDSPPipelineH" name="GrainDSPPipeline.h" compile="0" resource="0"
-            file="Source/DSP/GrainDSPPipeline.h"/>
+      <FILE id="tGrainDSPPipelineH" name="GrainDSPPipeline.h" compile="0"
+            resource="0" file="Source/DSP/GrainDSPPipeline.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
@@ -52,6 +57,9 @@
         <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_graphics" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_gui_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>
   </EXPORTFORMATS>

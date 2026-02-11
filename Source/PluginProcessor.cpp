@@ -118,13 +118,32 @@ const juce::String GRAINAudioProcessor::getProgramName(int /*index*/)
 void GRAINAudioProcessor::changeProgramName(int index, const juce::String& newName) {}
 
 //==============================================================================
-void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
+void GRAINAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    // Initialize smoothed values with 20ms smoothing time
-    driveSmoothed.reset(sampleRate, 0.02);
+    // --- Oversampling setup (Task 007) ---
+    // 2^1 = 2× for real-time, 2^2 = 4× for offline bounce
+    currentOversamplingOrder = isNonRealtime() ? 2 : 1;
+
+    oversampling = std::make_unique<juce::dsp::Oversampling<float>>(
+        static_cast<size_t>(getTotalNumInputChannels()), currentOversamplingOrder,
+        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
+
+    oversampling->initProcessing(static_cast<size_t>(samplesPerBlock));
+
+    // Report latency to host for compensation
+    setLatencySamples(static_cast<int>(oversampling->getLatencyInSamples()));
+
+    // Calculate oversampled rate for DSP modules that run in the wet path
+    const double oversampledRate = sampleRate * static_cast<double>(oversampling->getOversamplingFactor());
+
+    // --- Smoothers ---
+    // Drive/warmth run at OVERSAMPLED rate (inside wet processing loop)
+    driveSmoothed.reset(oversampledRate, 0.02);
+    warmthSmoothed.reset(oversampledRate, 0.02);
+
+    // Mix/gain run at ORIGINAL rate (after downsampling, linear operations)
     mixSmoothed.reset(sampleRate, 0.02);
     gainSmoothed.reset(sampleRate, 0.02);
-    warmthSmoothed.reset(sampleRate, 0.02);
 
     // Set initial values
     driveSmoothed.setCurrentAndTargetValue(*driveParam);
@@ -136,18 +155,21 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock
 
     gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
-    // Initialize RMS detector (Task 003)
-    rmsDetector.prepare(static_cast<float>(sampleRate), GrainDSP::kRmsAttackMs, GrainDSP::kRmsReleaseMs);
+    // --- RMS detector at oversampled rate (Task 003) ---
+    rmsDetector.prepare(static_cast<float>(oversampledRate), GrainDSP::kRmsAttackMs, GrainDSP::kRmsReleaseMs);
     rmsDetector.reset();
     currentEnvelope = 0.0f;
 
-    // Initialize per-channel pipelines (Task 006b) with spectral focus (Task 006c)
+    // --- Per-channel pipelines at oversampled rate (Task 006b/006c) ---
     const auto focusMode = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
     lastFocusMode = focusMode;
-    pipelineLeft.prepare(static_cast<float>(sampleRate), focusMode);
+    pipelineLeft.prepare(static_cast<float>(oversampledRate), focusMode);
     pipelineLeft.reset();
-    pipelineRight.prepare(static_cast<float>(sampleRate), focusMode);
+    pipelineRight.prepare(static_cast<float>(oversampledRate), focusMode);
     pipelineRight.reset();
+
+    // --- Pre-allocate dry buffer (avoid real-time allocation) ---
+    dryBuffer.setSize(getTotalNumInputChannels(), samplesPerBlock);
 }
 
 void GRAINAudioProcessor::releaseResources()
@@ -190,8 +212,8 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 {
     juce::ignoreUnused(midiMessages);
     const juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    const auto totalNumInputChannels = getTotalNumInputChannels();
+    const auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     // Clear any output channels that don't have input data
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -199,57 +221,98 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
-    // Bypass via mix: when bypassed, mix target = 0 (full dry)
+    // --- 1. Save dry signal at original rate (before upsampling) ---
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+    {
+        dryBuffer.copyFrom(ch, 0, buffer, ch, 0, buffer.getNumSamples());
+    }
+
+    // --- 2. Update parameter targets ---
     const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
-    // Check if focus mode changed (Task 006c) — recalculate coefficients, don't reset state
+    // Check if focus mode changed (Task 006c) — use oversampled rate for coefficients
     const auto currentFocus = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
     if (currentFocus != lastFocusMode)
     {
-        const float sr = static_cast<float>(getSampleRate());
-        pipelineLeft.setFocusMode(sr, currentFocus);
-        pipelineRight.setFocusMode(sr, currentFocus);
+        const auto oversampledRate =
+            static_cast<float>(getSampleRate() * static_cast<double>(oversampling->getOversamplingFactor()));
+        pipelineLeft.setFocusMode(oversampledRate, currentFocus);
+        pipelineRight.setFocusMode(oversampledRate, currentFocus);
         lastFocusMode = currentFocus;
     }
 
-    // Update targets at block start
+    // Drive/warmth targets (smoothed at oversampled rate)
     driveSmoothed.setTargetValue(*driveParam);
     warmthSmoothed.setTargetValue(*warmthParam);
+
+    // Mix/gain targets (smoothed at original rate)
     mixSmoothed.setTargetValue(targetMix);
     gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
-    // Get channel pointers
-    auto numSamples = buffer.getNumSamples();
-    float* leftChannel = totalNumInputChannels > 0 ? buffer.getWritePointer(0) : nullptr;
-    float* rightChannel = totalNumInputChannels > 1 ? buffer.getWritePointer(1) : nullptr;
+    // --- 3. Upsample ---
+    juce::dsp::AudioBlock<float> block(buffer);
+    auto oversampledBlock = oversampling->processSamplesUp(block);
 
-    // Process sample-by-sample (RMS detector needs to run once per frame)
-    for (int sample = 0; sample < numSamples; ++sample)
+    // --- 4. Process wet DSP at oversampled rate ---
+    const auto numOversampledSamples = static_cast<int>(oversampledBlock.getNumSamples());
+    const auto numChannels = static_cast<int>(oversampledBlock.getNumChannels());
+
+    for (int sample = 0; sample < numOversampledSamples; ++sample)
     {
-        // Per-sample smoothing (NOT per-block!)
+        // Per-sample smoothing at oversampled rate
         const float drive = driveSmoothed.getNextValue();
         const float warmth = warmthSmoothed.getNextValue();
+
+        // Linked stereo RMS: mono sum of both channels
+        float monoInput = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            monoInput += oversampledBlock.getSample(ch, sample);
+        }
+        monoInput /= static_cast<float>(numChannels);
+        currentEnvelope = rmsDetector.process(monoInput);
+
+        // Process left channel wet path
+        if (numChannels > 0)
+        {
+            const float input = oversampledBlock.getSample(0, sample);
+            const float wet = pipelineLeft.processWet(input, currentEnvelope, drive, warmth);
+            oversampledBlock.setSample(0, sample, wet);
+        }
+
+        // Process right channel wet path
+        if (numChannels > 1)
+        {
+            const float input = oversampledBlock.getSample(1, sample);
+            const float wet = pipelineRight.processWet(input, currentEnvelope, drive, warmth);
+            oversampledBlock.setSample(1, sample, wet);
+        }
+    }
+
+    // --- 5. Downsample ---
+    oversampling->processSamplesDown(block);
+
+    // --- 6. Mix + Gain at original rate ---
+    const auto numSamples = buffer.getNumSamples();
+
+    for (int sample = 0; sample < numSamples; ++sample)
+    {
         const float mix = mixSmoothed.getNextValue();
         const float gain = gainSmoothed.getNextValue();
 
-        // Get samples from both channels
-        float const leftSample = leftChannel != nullptr ? leftChannel[sample] : 0.0f;
-        float const rightSample = rightChannel != nullptr ? rightChannel[sample] : leftSample;
-
-        // RMS detector: process once per sample-frame with mono sum (linked stereo)
-        const float monoInput = (leftSample + rightSample) * 0.5f;
-        currentEnvelope = rmsDetector.process(monoInput);
-
-        // Process each channel through its own DSP pipeline
-        if (leftChannel != nullptr)
+        if (totalNumInputChannels > 0)
         {
-            leftChannel[sample] = pipelineLeft.processSample(leftSample, currentEnvelope, drive, warmth, mix, gain);
+            const float dry = dryBuffer.getSample(0, sample);
+            const float wet = buffer.getSample(0, sample);
+            buffer.setSample(0, sample, pipelineLeft.processMixGain(dry, wet, mix, gain));
         }
 
-        if (rightChannel != nullptr)
+        if (totalNumInputChannels > 1)
         {
-            rightChannel[sample] = pipelineRight.processSample(rightSample, currentEnvelope, drive, warmth, mix, gain);
+            const float dry = dryBuffer.getSample(1, sample);
+            const float wet = buffer.getSample(1, sample);
+            buffer.setSample(1, sample, pipelineRight.processMixGain(dry, wet, mix, gain));
         }
     }
 }
