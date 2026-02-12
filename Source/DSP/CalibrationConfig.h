@@ -32,7 +32,7 @@ struct BiasCalibration
 struct WaveshaperCalibration
 {
     float driveMin = 0.1f;  // Grain 0% maps to this drive
-    float driveMax = 0.5f;  // Grain 100% maps to this drive
+    float driveMax = 0.4f;  // Grain 100% maps to this drive
 };
 
 struct WarmthCalibration
@@ -44,7 +44,7 @@ struct FocusCalibration
 {
     float lowShelfFreq = 200.0f;    // Hz
     float highShelfFreq = 4000.0f;  // Hz
-    float shelfGainDb = 3.0f;       // dB (max boost/cut)
+    float shelfGainDb = 2.8f;       // dB (max boost/cut)
     float shelfQ = 0.707f;          // Butterworth Q
 };
 
