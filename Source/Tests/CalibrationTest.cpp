@@ -76,7 +76,7 @@ private:
             extreme.focus.shelfGainDb = 12.0f;   // Aggressive shelving
 
             GrainDSP::DSPPipeline pipeline;
-            pipeline.prepare(44100.0f, GrainDSP::FocusMode::Mid, extreme);
+            pipeline.prepare(44100.0f, GrainDSP::FocusMode::kMid, extreme);
 
             // Process 1000 samples of sine wave
             for (int i = 0; i < 1000; ++i)
@@ -101,8 +101,8 @@ private:
             GrainDSP::CalibrationConfig configB = GrainDSP::kDefaultCalibration;
             configB.warmth.depth = 0.8f;  // Much more warmth
 
-            pipelineA.prepare(44100.0f, GrainDSP::FocusMode::Mid, configA);
-            pipelineB.prepare(44100.0f, GrainDSP::FocusMode::Mid, configB);
+            pipelineA.prepare(44100.0f, GrainDSP::FocusMode::kMid, configA);
+            pipelineB.prepare(44100.0f, GrainDSP::FocusMode::kMid, configB);
 
             float sample = 0.5f;
             float resultA = pipelineA.processSample(sample, 0.5f, 0.3f, 0.5f, 1.0f, 1.0f);

@@ -26,11 +26,11 @@ namespace GrainDSP
  * Each mode applies a complementary pair of shelf filters
  * to bias the harmonic generation region.
  */
-enum class FocusMode
+enum class FocusMode : std::uint8_t
 {
-    Low = 0,  // Emphasis below 200 Hz (thicker, heavier bottom end)
-    Mid = 1,  // Emphasis 200 Hz – 4 kHz (balanced presence)
-    High = 2  // Emphasis above 4 kHz (airy, crisp top end)
+    kLow = 0,  // Emphasis below 200 Hz (thicker, heavier bottom end)
+    kMid = 1,  // Emphasis 200 Hz – 4 kHz (balanced presence)
+    kHigh = 2  // Emphasis above 4 kHz (airy, crisp top end)
 };
 
 //==============================================================================
@@ -43,17 +43,21 @@ struct SpectralFocus
 {
     /**
      * Transposed Direct Form II biquad filter state.
+     * Stores both coefficients (b0–b2, a1–a2) and delay elements (z1, z2).
      */
     struct BiquadState
     {
-        float b0 = 1.0f;
-        float b1 = 0.0f;
-        float b2 = 0.0f;
-        float a1 = 0.0f;
-        float a2 = 0.0f;
-        float z1 = 0.0f;
-        float z2 = 0.0f;
+        float b0 = 1.0f;  ///< Feedforward coefficient 0
+        float b1 = 0.0f;  ///< Feedforward coefficient 1
+        float b2 = 0.0f;  ///< Feedforward coefficient 2
+        float a1 = 0.0f;  ///< Feedback coefficient 1 (a0 is normalized to 1)
+        float a2 = 0.0f;  ///< Feedback coefficient 2
+        float z1 = 0.0f;  ///< Delay element 1
+        float z2 = 0.0f;  ///< Delay element 2
 
+        /** Process a single sample through the biquad filter.
+         *  @param input Input sample
+         *  @return Filtered output sample */
         float process(float input)
         {
             const float output = (b0 * input) + z1;
@@ -62,6 +66,7 @@ struct SpectralFocus
             return output;
         }
 
+        /** Reset delay elements to zero (silence). */
         void reset()
         {
             z1 = 0.0f;
@@ -88,17 +93,17 @@ struct SpectralFocus
 
         switch (mode)
         {
-            case FocusMode::Low:
+            case FocusMode::kLow:
                 lowGainDb = cal.shelfGainDb;    // +3 dB
                 highGainDb = -cal.shelfGainDb;  // -3 dB
                 break;
 
-            case FocusMode::Mid:
+            case FocusMode::kMid:
                 lowGainDb = -cal.shelfGainDb * 0.5f;   // -1.5 dB
                 highGainDb = -cal.shelfGainDb * 0.5f;  // -1.5 dB
                 break;
 
-            case FocusMode::High:
+            case FocusMode::kHigh:
                 lowGainDb = -cal.shelfGainDb;  // -3 dB
                 highGainDb = cal.shelfGainDb;  // +3 dB
                 break;
@@ -142,15 +147,19 @@ struct SpectralFocus
     }
 
 private:
+    /** Normalized biquad coefficients (a0 already divided out). */
     struct Coefficients
     {
         float b0, b1, b2, a1, a2;
     };
 
-    /**
-     * Calculate low shelf biquad coefficients.
-     * Reference: Audio EQ Cookbook (Robert Bristow-Johnson)
-     */
+    /** Calculate low shelf biquad coefficients.
+     *  Reference: Audio EQ Cookbook (Robert Bristow-Johnson).
+     *  @param sampleRate Sample rate in Hz
+     *  @param freq Shelf corner frequency in Hz
+     *  @param q Q factor (0.707 = Butterworth)
+     *  @param gainDb Shelf gain in dB (positive = boost, negative = cut)
+     *  @return Normalized biquad coefficients */
     static Coefficients calculateLowShelf(float sampleRate, float freq, float q, float gainDb)
     {
         constexpr float kTwoPi = 6.283185307f;
@@ -173,10 +182,13 @@ private:
         return c;
     }
 
-    /**
-     * Calculate high shelf biquad coefficients.
-     * Reference: Audio EQ Cookbook (Robert Bristow-Johnson)
-     */
+    /** Calculate high shelf biquad coefficients.
+     *  Reference: Audio EQ Cookbook (Robert Bristow-Johnson).
+     *  @param sampleRate Sample rate in Hz
+     *  @param freq Shelf corner frequency in Hz
+     *  @param q Q factor (0.707 = Butterworth)
+     *  @param gainDb Shelf gain in dB (positive = boost, negative = cut)
+     *  @return Normalized biquad coefficients */
     static Coefficients calculateHighShelf(float sampleRate, float freq, float q, float gainDb)
     {
         constexpr float kTwoPi = 6.283185307f;

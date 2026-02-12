@@ -121,7 +121,17 @@ run_tidy() {
 
   for file in $files; do
     echo -e "${YELLOW}Analyzing: $file${NC}"
-    if ! clang-tidy -p "$PROJECT_ROOT" "$file" 2>&1 | grep -v "^$"; then
+    # Filter out clang-tidy informational lines (suppressed counts, header-filter hints)
+    local output
+    output=$(clang-tidy -p "$PROJECT_ROOT" -header-filter='.*/Source/.*' "$file" 2>&1 \
+      | grep -v "^$" \
+      | grep -v "warnings generated" \
+      | grep -v "Suppressed .* warnings" \
+      | grep -v "Use -header-filter" \
+      | grep -v "Use -system-headers" \
+      || true)
+    if [ -n "$output" ]; then
+      echo "$output"
       failed=1
     fi
   done

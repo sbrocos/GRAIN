@@ -1,7 +1,9 @@
 /*
   ==============================================================================
 
-    This file contains the basic framework code for a JUCE plugin processor.
+    PluginProcessor.cpp
+    GRAIN — Micro-harmonic saturation processor.
+    Implementation of parameter setup, audio preparation, and real-time processing.
 
   ==============================================================================
 */

@@ -575,7 +575,7 @@ private:
         beginTest("Focus: Mid mode is near-unity for broadband signal");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Mid, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kMid, kFocusCal);
 
             // Process DC — let filter settle
             const float input = 0.5f;
@@ -595,7 +595,7 @@ private:
         beginTest("Focus: reset clears filter state");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kLow, kFocusCal);
 
             // Build up filter state
             for (int i = 0; i < 1000; ++i)
@@ -618,7 +618,7 @@ private:
         beginTest("Focus: silence in produces silence out");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::High, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kHigh, kFocusCal);
 
             for (int i = 0; i < 100; ++i)
             {
@@ -630,7 +630,7 @@ private:
         beginTest("Focus: Low mode boosts low frequencies");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kLow, kFocusCal);
 
             // Generate low frequency sine (100 Hz)
             const float sampleRate = 44100.0f;
@@ -676,7 +676,7 @@ private:
         beginTest("Focus: High mode boosts high frequencies");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::High, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kHigh, kFocusCal);
 
             const float sampleRate = 44100.0f;
             const int numSamples = static_cast<int>(sampleRate);
@@ -723,8 +723,8 @@ private:
         {
             GrainDSP::SpectralFocus focusL;
             GrainDSP::SpectralFocus focusR;
-            focusL.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
-            focusR.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
+            focusL.prepare(44100.0f, GrainDSP::FocusMode::kLow, kFocusCal);
+            focusR.prepare(44100.0f, GrainDSP::FocusMode::kLow, kFocusCal);
 
             // Process different signals on L and R using sine waves at different frequencies
             // so they don't just mirror each other
@@ -749,7 +749,7 @@ private:
         beginTest("Focus: no NaN or Inf on edge cases");
         {
             GrainDSP::SpectralFocus focus;
-            focus.prepare(44100.0f, GrainDSP::FocusMode::Low, kFocusCal);
+            focus.prepare(44100.0f, GrainDSP::FocusMode::kLow, kFocusCal);
 
             // Test extreme values
             float result = focus.process(1.0f);

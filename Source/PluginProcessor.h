@@ -1,7 +1,13 @@
 /*
   ==============================================================================
 
-    This file contains the basic framework code for a JUCE plugin processor.
+    PluginProcessor.h
+    GRAIN — Micro-harmonic saturation processor.
+    Main audio processor: parameter management, oversampling, and DSP orchestration.
+
+    Signal flow:
+    Input → [Upsample] → Dynamic Bias → Waveshaper → Warmth → Focus
+          → [Downsample] → Mix (dry/wet) → DC Blocker → Output Gain
 
   ==============================================================================
 */
@@ -18,6 +24,12 @@
 
 //==============================================================================
 /**
+ * Main audio processor for the GRAIN plugin.
+ *
+ * Manages stereo processing via two mono DSPPipeline instances (L/R),
+ * internal oversampling (2x real-time, 4x offline), and smooth parameter
+ * transitions via SmoothedValue. Bypass is implemented as a soft fade
+ * (mix target → 0) to avoid clicks.
  */
 class GRAINAudioProcessor : public juce::AudioProcessor
 {
@@ -68,9 +80,17 @@ private:
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    // processBlock sub-methods (refactor for readability)
+    /** Read current parameter values and update smoother targets.
+     *  Handles bypass (mix → 0), focus mode changes, and all smoother targets. */
     void updateParameterTargets();
+
+    /** Run the nonlinear DSP chain (Bias → Waveshaper → Warmth → Focus)
+     *  sample-by-sample at oversampled rate.
+     *  @param oversampledBlock Audio block at oversampled rate (modified in-place) */
     void processWetOversampled(juce::dsp::AudioBlock<float>& oversampledBlock);
+
+    /** Apply dry/wet mix, DC blocking, and output gain at original sample rate.
+     *  @param buffer Audio buffer at original rate (modified in-place) */
     void applyMixAndGain(juce::AudioBuffer<float>& buffer);
 
     // Parameter pointers for fast access
@@ -99,7 +119,7 @@ private:
     GrainDSP::DSPPipeline pipelineRight;
 
     // Spectral Focus mode tracking (Task 006c)
-    GrainDSP::FocusMode lastFocusMode = GrainDSP::FocusMode::Mid;
+    GrainDSP::FocusMode lastFocusMode = GrainDSP::FocusMode::kMid;
 
     // Internal oversampling (Task 007)
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
