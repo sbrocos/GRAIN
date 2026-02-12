@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "Constants.h"
+#include "CalibrationConfig.h"
 #include "DCBlocker.h"
 #include "DSPHelpers.h"
 #include "DynamicBias.h"
@@ -37,11 +37,13 @@ struct DSPPipeline
      * Prepare all stateful modules for a given sample rate.
      * @param sampleRate Sample rate in Hz
      * @param focusMode Initial spectral focus mode
+     * @param cal Calibration config for all DSP modules
      */
-    void prepare(float sampleRate, FocusMode focusMode = FocusMode::Mid)
+    void prepare(float sampleRate, FocusMode focusMode, const CalibrationConfig& cal)
     {
-        dcBlocker.prepare(sampleRate);
-        spectralFocus.prepare(sampleRate, focusMode);
+        config = cal;
+        dcBlocker.prepare(sampleRate, cal.dcBlocker);
+        spectralFocus.prepare(sampleRate, focusMode, cal.focus);
     }
 
     /**
@@ -50,7 +52,10 @@ struct DSPPipeline
      * @param sampleRate Sample rate in Hz
      * @param focusMode New spectral focus mode
      */
-    void setFocusMode(float sampleRate, FocusMode focusMode) { spectralFocus.prepare(sampleRate, focusMode); }
+    void setFocusMode(float sampleRate, FocusMode focusMode)
+    {
+        spectralFocus.prepare(sampleRate, focusMode, config.focus);
+    }
 
     /**
      * Reset all stateful module states.
@@ -72,9 +77,9 @@ struct DSPPipeline
      */
     float processWet(float input, float envelope, float drive, float warmth)
     {
-        const float biased = applyDynamicBias(input, envelope, kBiasAmount);
+        const float biased = applyDynamicBias(input, envelope, config.bias.amount, config.bias);
         const float shaped = applyWaveshaper(biased, drive);
-        const float warmed = applyWarmth(shaped, warmth);
+        const float warmed = applyWarmth(shaped, warmth, config.warmth);
         return spectralFocus.process(warmed);
     }
 
@@ -110,6 +115,9 @@ struct DSPPipeline
         const float wet = processWet(dry, envelope, drive, warmth);
         return processMixGain(dry, wet, mix, gain);
     }
+
+private:
+    CalibrationConfig config;
 };
 
 }  // namespace GrainDSP

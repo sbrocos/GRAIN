@@ -156,16 +156,16 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     gainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
 
     // --- RMS detector at oversampled rate (Task 003) ---
-    rmsDetector.prepare(static_cast<float>(oversampledRate), GrainDSP::kRmsAttackMs, GrainDSP::kRmsReleaseMs);
+    rmsDetector.prepare(static_cast<float>(oversampledRate), calibration.rms);
     rmsDetector.reset();
     currentEnvelope = 0.0f;
 
-    // --- Per-channel pipelines at oversampled rate (Task 006b/006c) ---
+    // --- Per-channel pipelines at oversampled rate (Task 006b/006c/007b) ---
     const auto focusMode = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
     lastFocusMode = focusMode;
-    pipelineLeft.prepare(static_cast<float>(oversampledRate), focusMode);
+    pipelineLeft.prepare(static_cast<float>(oversampledRate), focusMode, calibration);
     pipelineLeft.reset();
-    pipelineRight.prepare(static_cast<float>(oversampledRate), focusMode);
+    pipelineRight.prepare(static_cast<float>(oversampledRate), focusMode, calibration);
     pipelineRight.reset();
 
     // --- Pre-allocate dry buffer (avoid real-time allocation) ---

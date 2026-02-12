@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Constants.h"
+#include "CalibrationConfig.h"
 
 namespace GrainDSP
 {
@@ -20,11 +20,12 @@ namespace GrainDSP
  * @param input The input sample
  * @param rmsLevel Current RMS envelope value from detector
  * @param biasAmount Bias intensity (0.0 = no bias, 1.0 = full bias)
+ * @param cal Bias calibration parameters
  * @return Biased output sample
  */
-inline float applyDynamicBias(float input, float rmsLevel, float biasAmount)
+inline float applyDynamicBias(float input, float rmsLevel, float biasAmount, const BiasCalibration& cal)
 {
-    const float bias = rmsLevel * biasAmount * kBiasScale;
+    const float bias = rmsLevel * biasAmount * cal.scale;
     return input + (bias * input * input);
 }
 

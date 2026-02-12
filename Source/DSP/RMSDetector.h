@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "CalibrationConfig.h"
 #include "DSPHelpers.h"
 
 #include <cmath>
@@ -30,13 +31,12 @@ struct RMSDetector
     /**
      * Prepare the detector for a given sample rate.
      * @param sampleRate Sample rate in Hz
-     * @param attackMs Attack time in milliseconds
-     * @param releaseMs Release time in milliseconds
+     * @param cal RMS calibration parameters (attack/release times)
      */
-    void prepare(float sampleRate, float attackMs, float releaseMs)
+    void prepare(float sampleRate, const RMSCalibration& cal)
     {
-        attackCoeff = calculateCoefficient(sampleRate, attackMs);
-        releaseCoeff = calculateCoefficient(sampleRate, releaseMs);
+        attackCoeff = calculateCoefficient(sampleRate, cal.attackMs);
+        releaseCoeff = calculateCoefficient(sampleRate, cal.releaseMs);
     }
 
     /**

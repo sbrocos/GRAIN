@@ -86,6 +86,9 @@ private:
     GrainDSP::RMSDetector rmsDetector;
     float currentEnvelope = 0.0f;
 
+    // Centralized calibration config (Task 007b)
+    GrainDSP::CalibrationConfig calibration = GrainDSP::kDefaultCalibration;
+
     // Per-channel DSP pipelines (Task 006b)
     GrainDSP::DSPPipeline pipelineLeft;
     GrainDSP::DSPPipeline pipelineRight;

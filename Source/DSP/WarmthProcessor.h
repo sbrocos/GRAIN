@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "Constants.h"
+#include "CalibrationConfig.h"
 
 #include <cmath>
 
@@ -22,11 +22,12 @@ namespace GrainDSP
  * components using half-wave rectification blend.
  * @param input Signal after waveshaper
  * @param warmth Warmth amount (0.0 = neutral, 1.0 = maximum warmth)
+ * @param cal Warmth calibration parameters
  * @return Harmonically shaped signal
  */
-inline float applyWarmth(float input, float warmth)
+inline float applyWarmth(float input, float warmth, const WarmthCalibration& cal)
 {
-    const float depth = warmth * kWarmthDepth;
+    const float depth = warmth * cal.depth;
     const float asymmetric = input * std::abs(input);
     return input + (depth * (asymmetric - input));
 }
