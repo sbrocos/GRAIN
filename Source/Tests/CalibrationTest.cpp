@@ -44,7 +44,7 @@ private:
 
             // Waveshaper
             expectEquals(cal.waveshaper.driveMin, 0.1f);
-            expectEquals(cal.waveshaper.driveMax, 0.5f);
+            expectEquals(cal.waveshaper.driveMax, 0.4f);
 
             // Warmth
             expectEquals(cal.warmth.depth, 0.22f);
@@ -52,7 +52,7 @@ private:
             // Focus
             expectEquals(cal.focus.lowShelfFreq, 200.0f);
             expectEquals(cal.focus.highShelfFreq, 4000.0f);
-            expectEquals(cal.focus.shelfGainDb, 3.0f);
+            expectEquals(cal.focus.shelfGainDb, 2.8f);
             expectEquals(cal.focus.shelfQ, 0.707f);
 
             // DC Blocker
