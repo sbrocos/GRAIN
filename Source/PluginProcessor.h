@@ -68,6 +68,11 @@ private:
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+    // processBlock sub-methods (refactor for readability)
+    void updateParameterTargets();
+    void processWetOversampled(juce::dsp::AudioBlock<float>& oversampledBlock);
+    void applyMixAndGain(juce::AudioBuffer<float>& buffer);
+
     // Parameter pointers for fast access
     std::atomic<float>* driveParam = nullptr;
     std::atomic<float>* mixParam = nullptr;

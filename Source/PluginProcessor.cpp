@@ -212,26 +212,39 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 {
     juce::ignoreUnused(midiMessages);
     const juce::ScopedNoDenormals noDenormals;
-    const auto totalNumInputChannels = getTotalNumInputChannels();
-    const auto totalNumOutputChannels = getTotalNumOutputChannels();
 
     // Clear any output channels that don't have input data
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+    for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
     {
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
-    // --- 1. Save dry signal at original rate (before upsampling) ---
+    // Save dry signal at original rate (before upsampling)
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
         dryBuffer.copyFrom(ch, 0, buffer, ch, 0, buffer.getNumSamples());
     }
 
-    // --- 2. Update parameter targets ---
+    updateParameterTargets();
+
+    // Upsample → wet DSP → downsample
+    juce::dsp::AudioBlock<float> block(buffer);
+    auto oversampledBlock = oversampling->processSamplesUp(block);
+    processWetOversampled(oversampledBlock);
+    oversampling->processSamplesDown(block);
+
+    // Linear stages at original rate
+    applyMixAndGain(buffer);
+}
+
+//==============================================================================
+void GRAINAudioProcessor::updateParameterTargets()
+{
+    // Bypass drives mix to 0 (soft bypass via smoothing)
     const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
 
-    // Check if focus mode changed (Task 006c) — use oversampled rate for coefficients
+    // Check if focus mode changed — use oversampled rate for coefficients
     const auto currentFocus = static_cast<GrainDSP::FocusMode>(focusParam->getIndex());
     if (currentFocus != lastFocusMode)
     {
@@ -249,16 +262,15 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     // Mix/gain targets (smoothed at original rate)
     mixSmoothed.setTargetValue(targetMix);
     gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
+}
 
-    // --- 3. Upsample ---
-    juce::dsp::AudioBlock<float> block(buffer);
-    auto oversampledBlock = oversampling->processSamplesUp(block);
-
-    // --- 4. Process wet DSP at oversampled rate ---
-    const auto numOversampledSamples = static_cast<int>(oversampledBlock.getNumSamples());
+//==============================================================================
+void GRAINAudioProcessor::processWetOversampled(juce::dsp::AudioBlock<float>& oversampledBlock)
+{
+    const auto numSamples = static_cast<int>(oversampledBlock.getNumSamples());
     const auto numChannels = static_cast<int>(oversampledBlock.getNumChannels());
 
-    for (int sample = 0; sample < numOversampledSamples; ++sample)
+    for (int sample = 0; sample < numSamples; ++sample)
     {
         // Per-sample smoothing at oversampled rate
         const float drive = driveSmoothed.getNextValue();
@@ -289,26 +301,27 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
             oversampledBlock.setSample(1, sample, wet);
         }
     }
+}
 
-    // --- 5. Downsample ---
-    oversampling->processSamplesDown(block);
-
-    // --- 6. Mix + Gain at original rate ---
+//==============================================================================
+void GRAINAudioProcessor::applyMixAndGain(juce::AudioBuffer<float>& buffer)
+{
     const auto numSamples = buffer.getNumSamples();
+    const auto numChannels = getTotalNumInputChannels();
 
     for (int sample = 0; sample < numSamples; ++sample)
     {
         const float mix = mixSmoothed.getNextValue();
         const float gain = gainSmoothed.getNextValue();
 
-        if (totalNumInputChannels > 0)
+        if (numChannels > 0)
         {
             const float dry = dryBuffer.getSample(0, sample);
             const float wet = buffer.getSample(0, sample);
             buffer.setSample(0, sample, pipelineLeft.processMixGain(dry, wet, mix, gain));
         }
 
-        if (totalNumInputChannels > 1)
+        if (numChannels > 1)
         {
             const float dry = dryBuffer.getSample(1, sample);
             const float wet = buffer.getSample(1, sample);
