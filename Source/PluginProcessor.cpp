@@ -10,7 +10,7 @@
 
 #include "PluginProcessor.h"
 
-// #include "PluginEditor.h"  // Not needed while using GenericAudioProcessorEditor
+#include "PluginEditor.h"
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createParameterLayout()
@@ -30,6 +30,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createP
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID("warmth", 1), "Warmth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("inputGain", 1), "Input Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
 
     params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID("focus", 1), "Focus",
                                                                   juce::StringArray{"Low", "Mid", "High"}, 1));
@@ -53,6 +56,7 @@ GRAINAudioProcessor::GRAINAudioProcessor()
     , mixParam(apvts.getRawParameterValue("mix"))
     , outputParam(apvts.getRawParameterValue("output"))
     , warmthParam(apvts.getRawParameterValue("warmth"))
+    , inputGainParam(apvts.getRawParameterValue("inputGain"))
     , bypassParam(dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("bypass")))
     , focusParam(dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter("focus")))
 #endif
@@ -143,13 +147,15 @@ void GRAINAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
     driveSmoothed.reset(oversampledRate, 0.02);
     warmthSmoothed.reset(oversampledRate, 0.02);
 
-    // Mix/gain run at ORIGINAL rate (after downsampling, linear operations)
+    // Mix/gain/inputGain run at ORIGINAL rate (linear operations)
     mixSmoothed.reset(sampleRate, 0.02);
     gainSmoothed.reset(sampleRate, 0.02);
+    inputGainSmoothed.reset(sampleRate, 0.02);
 
     // Set initial values
     driveSmoothed.setCurrentAndTargetValue(*driveParam);
     warmthSmoothed.setCurrentAndTargetValue(*warmthParam);
+    inputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*inputGainParam)));
 
     const bool bypass = bypassParam->get();
     const float targetMix = bypass ? 0.0f : static_cast<float>(*mixParam);
@@ -221,13 +227,30 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
-    // Save dry signal at original rate (before upsampling)
+    // Measure input levels for GUI meters (Task 008) — before input gain
+    inputLevelL.store(buffer.getMagnitude(0, 0, buffer.getNumSamples()));
+    if (buffer.getNumChannels() > 1)
+    {
+        inputLevelR.store(buffer.getMagnitude(1, 0, buffer.getNumSamples()));
+    }
+
+    updateParameterTargets();
+
+    // Apply input gain (before saturation, at original rate)
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    {
+        const float inGain = inputGainSmoothed.getNextValue();
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            buffer.setSample(ch, sample, buffer.getSample(ch, sample) * inGain);
+        }
+    }
+
+    // Save dry signal at original rate (after input gain, before upsampling)
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
         dryBuffer.copyFrom(ch, 0, buffer, ch, 0, buffer.getNumSamples());
     }
-
-    updateParameterTargets();
 
     // Upsample → wet DSP → downsample
     juce::dsp::AudioBlock<float> block(buffer);
@@ -237,6 +260,13 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
     // Linear stages at original rate
     applyMixAndGain(buffer);
+
+    // Measure output levels for GUI meters (Task 008)
+    outputLevelL.store(buffer.getMagnitude(0, 0, buffer.getNumSamples()));
+    if (buffer.getNumChannels() > 1)
+    {
+        outputLevelR.store(buffer.getMagnitude(1, 0, buffer.getNumSamples()));
+    }
 }
 
 //==============================================================================
@@ -261,9 +291,10 @@ void GRAINAudioProcessor::updateParameterTargets()
     driveSmoothed.setTargetValue(*driveParam);
     warmthSmoothed.setTargetValue(*warmthParam);
 
-    // Mix/gain targets (smoothed at original rate)
+    // Mix/gain/inputGain targets (smoothed at original rate)
     mixSmoothed.setTargetValue(targetMix);
     gainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*outputParam)));
+    inputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(static_cast<float>(*inputGainParam)));
 }
 
 //==============================================================================
@@ -340,8 +371,7 @@ bool GRAINAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* GRAINAudioProcessor::createEditor()
 {
-    // Temporary generic UI for DSP development and listening tests
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new GRAINAudioProcessorEditor(*this);
 }
 
 //==============================================================================

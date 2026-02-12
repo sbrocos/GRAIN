@@ -6,7 +6,7 @@
     Main audio processor: parameter management, oversampling, and DSP orchestration.
 
     Signal flow:
-    Input → [Upsample] → Dynamic Bias → Waveshaper → Warmth → Focus
+    Input → Input Gain → [Upsample] → Dynamic Bias → Waveshaper → Warmth → Focus
           → [Downsample] → Mix (dry/wet) → DC Blocker → Output Gain
 
   ==============================================================================
@@ -72,10 +72,20 @@ public:
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     //==============================================================================
-    // Parameter state
-    juce::AudioProcessorValueTreeState apvts;
+    // APVTS accessor (apvts is private — use this from Editor and external code)
+    juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+
+    // Atomic level values for thread-safe GUI meter reads (Task 008)
+    std::atomic<float> inputLevelL{0.0f};
+    std::atomic<float> inputLevelR{0.0f};
+    std::atomic<float> outputLevelL{0.0f};
+    std::atomic<float> outputLevelR{0.0f};
 
 private:
+    //==============================================================================
+    // Parameter state (private — access via getAPVTS())
+    juce::AudioProcessorValueTreeState apvts;
+
     //==============================================================================
     // Parameter layout creation
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -98,6 +108,7 @@ private:
     std::atomic<float>* mixParam = nullptr;
     std::atomic<float>* outputParam = nullptr;
     std::atomic<float>* warmthParam = nullptr;
+    std::atomic<float>* inputGainParam = nullptr;
     juce::AudioParameterBool* bypassParam = nullptr;
     juce::AudioParameterChoice* focusParam = nullptr;
 
@@ -106,6 +117,7 @@ private:
     juce::SmoothedValue<float> mixSmoothed;
     juce::SmoothedValue<float> gainSmoothed;
     juce::SmoothedValue<float> warmthSmoothed;
+    juce::SmoothedValue<float> inputGainSmoothed;
 
     // RMS detector for Dynamic Bias (Task 003) — mono-summed, shared across channels
     GrainDSP::RMSDetector rmsDetector;

@@ -1,7 +1,9 @@
 /*
   ==============================================================================
 
-    This file contains the basic framework code for a JUCE plugin editor.
+    PluginEditor.cpp
+    GRAIN — Micro-harmonic saturation processor.
+    Plugin editor implementation: functional layout (Phase A).
 
   ==============================================================================
 */
@@ -10,30 +12,258 @@
 
 #include "PluginProcessor.h"
 
-//==============================================================================
-GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
-    : AudioProcessorEditor(&p), audioProcessor(p)
+namespace
 {
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize(400, 300);
+constexpr int kEditorWidth = 500;
+constexpr int kEditorHeight = 350;
+constexpr int kHeaderHeight = 50;
+constexpr int kFooterHeight = 100;
+constexpr int kMeterColumnWidth = 60;  // meter + padding
+}  // namespace
+
+//==============================================================================
+GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : AudioProcessorEditor(&p), processor(p)
+{
+    setSize(kEditorWidth, kEditorHeight);
+
+    // === Grain (main — creative) ===
+    // Visual label: "GRAIN" — Parameter ID: "drive"
+    grainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    grainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible(grainSlider);
+    grainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
+                                                                                             "drive", grainSlider);
+
+    grainLabel.setJustificationType(juce::Justification::centred);
+    grainLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(grainLabel);
+
+    // === Warmth (main — creative) ===
+    warmthSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    warmthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible(warmthSlider);
+    warmthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
+                                                                                              "warmth", warmthSlider);
+
+    warmthLabel.setJustificationType(juce::Justification::centred);
+    warmthLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(warmthLabel);
+
+    // === Input (secondary — utility) ===
+    inputSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    inputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    inputSlider.setTextValueSuffix(" dB");
+    addAndMakeVisible(inputSlider);
+    inputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
+                                                                                             "inputGain", inputSlider);
+
+    inputLabel.setJustificationType(juce::Justification::centred);
+    inputLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(inputLabel);
+
+    // === Mix (secondary — utility) ===
+    mixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    addAndMakeVisible(mixSlider);
+    mixAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(), "mix", mixSlider);
+
+    mixLabel.setJustificationType(juce::Justification::centred);
+    mixLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(mixLabel);
+
+    // === Focus (secondary — selector) ===
+    // Items in uppercase for UI display; attachment maps by index to parameter values
+    focusSelector.addItem("LOW", 1);
+    focusSelector.addItem("MID", 2);
+    focusSelector.addItem("HIGH", 3);
+    addAndMakeVisible(focusSelector);
+    focusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.getAPVTS(),
+                                                                                               "focus", focusSelector);
+
+    focusLabel.setJustificationType(juce::Justification::centred);
+    focusLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(focusLabel);
+
+    // === Output (secondary — utility) ===
+    outputSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    outputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    outputSlider.setTextValueSuffix(" dB");
+    addAndMakeVisible(outputSlider);
+    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
+                                                                                              "output", outputSlider);
+
+    outputLabel.setJustificationType(juce::Justification::centred);
+    outputLabel.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(outputLabel);
+
+    // === Bypass ===
+    bypassButton.setClickingTogglesState(true);
+    bypassButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
+    bypassButton.setColour(juce::TextButton::buttonOnColourId, GrainColours::kAccent);
+    bypassButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    bypassButton.setColour(juce::TextButton::textColourOnId, GrainColours::kTextBright);
+    addAndMakeVisible(bypassButton);
+    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.getAPVTS(),
+                                                                                              "bypass", bypassButton);
+
+    // Start meter timer (30 FPS)
+    startTimerHz(30);
 }
 
-GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor() = default;
+GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
+{
+    stopTimer();
+}
 
 //==============================================================================
 void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
-    g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+    // Background
+    g.fillAll(GrainColours::kBackground);
 
-    g.setColour(juce::Colours::white);
-    g.setFont(juce::FontOptions(15.0f));
-    g.drawFittedText("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
+    // Header area
+    auto headerArea = getLocalBounds().removeFromTop(kHeaderHeight);
+    g.setColour(GrainColours::kSurface);
+    g.fillRect(headerArea);
+
+    // Title — JUCE 8 Font API
+    g.setColour(GrainColours::kTextBright);
+    g.setFont(juce::Font(juce::FontOptions(24.0f).withStyle("Bold")));
+    g.drawText("GRAIN", headerArea.reduced(15, 0), juce::Justification::centredLeft);
+
+    // Meters
+    auto bounds = getLocalBounds();
+    bounds.removeFromTop(kHeaderHeight);
+    bounds.removeFromBottom(kFooterHeight);
+
+    auto inputMeterArea = bounds.removeFromLeft(kMeterColumnWidth).toFloat().reduced(10, 20);
+    auto outputMeterArea = bounds.removeFromRight(kMeterColumnWidth).toFloat().reduced(10, 20);
+
+    drawMeter(g, inputMeterArea, displayInputL, displayInputR, "IN");
+    drawMeter(g, outputMeterArea, displayOutputL, displayOutputR, "OUT");
+
+    // Footer separator
+    g.setColour(GrainColours::kSurface);
+    g.fillRect(getLocalBounds().removeFromBottom(kFooterHeight));
 }
 
+void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> area, float levelL, float levelR,
+                                          const juce::String& label)
+{
+    auto labelHeight = 20.0f;
+    auto labelArea = area.removeFromTop(labelHeight);
+
+    g.setColour(GrainColours::kText);
+    g.setFont(juce::Font(juce::FontOptions(12.0f)));
+    g.drawText(label, labelArea, juce::Justification::centred);
+
+    auto meterArea = area.reduced(2, 0);
+    auto meterBarWidth = meterArea.getWidth() / 2.0f - 2.0f;
+
+    auto leftArea = meterArea.removeFromLeft(meterBarWidth);
+    meterArea.removeFromLeft(4);  // Gap between L/R
+    auto rightArea = meterArea;
+
+    // Meter backgrounds
+    g.setColour(juce::Colours::black);
+    g.fillRect(leftArea);
+    g.fillRect(rightArea);
+
+    // Draw level bars
+    auto drawLevel = [&](juce::Rectangle<float> meterRect, float level)
+    {
+        float dbLevel = juce::Decibels::gainToDecibels(level, -60.0f);
+        float normalized = juce::jmap(dbLevel, -60.0f, 0.0f, 0.0f, 1.0f);
+        normalized = juce::jlimit(0.0f, 1.0f, normalized);
+
+        auto levelHeight = meterRect.getHeight() * normalized;
+        auto levelRect = meterRect.removeFromBottom(levelHeight);
+
+        // Color: green → yellow → red
+        if (normalized < 0.7f)
+        {
+            g.setColour(GrainColours::kMeterGreen);
+        }
+        else if (normalized < 0.9f)
+        {
+            g.setColour(GrainColours::kMeterYellow);
+        }
+        else
+        {
+            g.setColour(GrainColours::kMeterRed);
+        }
+
+        g.fillRect(levelRect);
+    };
+
+    drawLevel(leftArea.reduced(1), levelL);
+    drawLevel(rightArea.reduced(1), levelR);
+}
+
+//==============================================================================
 void GRAINAudioProcessorEditor::resized()
 {
-    // This is generally where you'll want to lay out the positions of any
-    // subcomponents in your editor..
+    auto bounds = getLocalBounds();
+
+    // Header
+    auto headerArea = bounds.removeFromTop(kHeaderHeight);
+    bypassButton.setBounds(headerArea.removeFromRight(80).reduced(10));
+
+    // Footer (secondary controls — 4 items: INPUT | MIX | FOCUS | OUTPUT)
+    auto footerArea = bounds.removeFromBottom(kFooterHeight);
+    auto footerControls = footerArea.reduced(20, 10);
+
+    auto controlWidth = footerControls.getWidth() / 4;
+
+    auto inputArea = footerControls.removeFromLeft(controlWidth);
+    inputLabel.setBounds(inputArea.removeFromTop(20));
+    inputSlider.setBounds(inputArea);
+
+    auto mixArea = footerControls.removeFromLeft(controlWidth);
+    mixLabel.setBounds(mixArea.removeFromTop(20));
+    mixSlider.setBounds(mixArea);
+
+    auto focusArea = footerControls.removeFromLeft(controlWidth);
+    focusLabel.setBounds(focusArea.removeFromTop(20));
+    focusSelector.setBounds(focusArea.reduced(10, 20));
+
+    auto outputArea = footerControls;
+    outputLabel.setBounds(outputArea.removeFromTop(20));
+    outputSlider.setBounds(outputArea);
+
+    // Main area (big knobs — creative controls: GRAIN + WARMTH)
+    auto mainArea = bounds;
+    mainArea.removeFromLeft(kMeterColumnWidth);
+    mainArea.removeFromRight(kMeterColumnWidth);
+    mainArea.reduce(10, 20);
+
+    auto knobWidth = mainArea.getWidth() / 2;
+
+    auto grainArea = mainArea.removeFromLeft(knobWidth);
+    grainLabel.setBounds(grainArea.removeFromTop(25));
+    grainSlider.setBounds(grainArea);
+
+    auto warmthArea = mainArea;
+    warmthLabel.setBounds(warmthArea.removeFromTop(25));
+    warmthSlider.setBounds(warmthArea);
+}
+
+//==============================================================================
+void GRAINAudioProcessorEditor::timerCallback()
+{
+    // Smooth meter decay
+    // NOTE: Phase A repaints entire editor at 30 FPS for simplicity.
+    // Phase B should optimize to repaint only meter areas.
+    float inL = processor.inputLevelL.load();
+    float inR = processor.inputLevelR.load();
+    float outL = processor.outputLevelL.load();
+    float outR = processor.outputLevelR.load();
+
+    displayInputL = std::max(inL, displayInputL * kMeterDecay);
+    displayInputR = std::max(inR, displayInputR * kMeterDecay);
+    displayOutputL = std::max(outL, displayOutputL * kMeterDecay);
+    displayOutputR = std::max(outR, displayOutputR * kMeterDecay);
+
+    repaint();
 }
