@@ -5,19 +5,19 @@
 Create a functional plugin editor with organized controls, meters, and a basic visual style. This is **Phase A** — focused on usability and structure, not final visual polish.
 
 ```
-┌────────────────────────────────────────────┐
-│              GRAIN                    [BP] │
-│────────────────────────────────────────────│
-│                                            │
-│   IN        [GRAIN]    [MIX]         OUT   │
-│   ████       (big)     (big)         ████  │
-│   ████                               ████  │
-│                                            │
-│────────────────────────────────────────────│
-│  [WARMTH]    [FOCUS]    [OUTPUT]           │
-│   (small)   LOW MID HI   (small)           │
-│                                            │
-└────────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│              GRAIN                        [BP] │
+│────────────────────────────────────────────────│
+│                                                │
+│   IN       [GRAIN]   [WARMTH]            OUT   │
+│   ████      (big)     (big)              ████  │
+│   ████                                   ████  │
+│                                                │
+│────────────────────────────────────────────────│
+│  [INPUT]    [MIX]    [FOCUS]    [OUTPUT]       │
+│  (small)   (small)  LOW MID HI  (small)        │
+│                                                │
+└────────────────────────────────────────────────┘
 ```
 
 ---
@@ -63,8 +63,8 @@ constexpr int EDITOR_HEIGHT = 350;
 | Section | Contents | Position |
 |---------|----------|----------|
 | **Header** | Title "GRAIN", Bypass button | Top |
-| **Main** | Grain knob, Mix knob, Input/Output meters | Center |
-| **Footer** | Warmth, Focus selector, Output | Bottom |
+| **Main** | Grain knob, Warmth knob, Input/Output meters | Center |
+| **Footer** | Input, Mix, Focus selector, Output | Bottom |
 
 ---
 
@@ -114,12 +114,13 @@ private:
 
     GRAINAudioProcessor& processor;
 
-    // Main controls
+    // Main controls (creative)
     juce::Slider grainSlider;
-    juce::Slider mixSlider;
-
-    // Secondary controls
     juce::Slider warmthSlider;
+
+    // Secondary controls (utility)
+    juce::Slider inputSlider;
+    juce::Slider mixSlider;
     juce::ComboBox focusSelector;
     juce::Slider outputSlider;
 
@@ -128,15 +129,17 @@ private:
 
     // Labels
     juce::Label grainLabel { {}, "GRAIN" };
-    juce::Label mixLabel { {}, "MIX" };
     juce::Label warmthLabel { {}, "WARMTH" };
+    juce::Label inputLabel { {}, "INPUT" };
+    juce::Label mixLabel { {}, "MIX" };
     juce::Label focusLabel { {}, "FOCUS" };
     juce::Label outputLabel { {}, "OUTPUT" };
 
     // APVTS attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> grainAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> warmthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> inputAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> focusAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
@@ -167,7 +170,7 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
 {
     setSize(EDITOR_WIDTH, EDITOR_HEIGHT);
 
-    // === Grain (main) ===
+    // === Grain (main — creative) ===
     // Visual label: "GRAIN" — Parameter ID: "drive"
     grainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     grainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
@@ -179,20 +182,9 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     grainLabel.setColour(juce::Label::textColourId, GrainColours::text);
     addAndMakeVisible(grainLabel);
 
-    // === Mix (main) ===
-    mixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible(mixSlider);
-    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        processor.getAPVTS(), "mix", mixSlider);
-
-    mixLabel.setJustificationType(juce::Justification::centred);
-    mixLabel.setColour(juce::Label::textColourId, GrainColours::text);
-    addAndMakeVisible(mixLabel);
-
-    // === Warmth ===
+    // === Warmth (main — creative) ===
     warmthSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    warmthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    warmthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
     addAndMakeVisible(warmthSlider);
     warmthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         processor.getAPVTS(), "warmth", warmthSlider);
@@ -201,7 +193,30 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     warmthLabel.setColour(juce::Label::textColourId, GrainColours::text);
     addAndMakeVisible(warmthLabel);
 
-    // === Focus (selector) ===
+    // === Input (secondary — utility) ===
+    inputSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    inputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    inputSlider.setTextValueSuffix(" dB");
+    addAndMakeVisible(inputSlider);
+    inputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.getAPVTS(), "inputGain", inputSlider);
+
+    inputLabel.setJustificationType(juce::Justification::centred);
+    inputLabel.setColour(juce::Label::textColourId, GrainColours::text);
+    addAndMakeVisible(inputLabel);
+
+    // === Mix (secondary — utility) ===
+    mixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    addAndMakeVisible(mixSlider);
+    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        processor.getAPVTS(), "mix", mixSlider);
+
+    mixLabel.setJustificationType(juce::Justification::centred);
+    mixLabel.setColour(juce::Label::textColourId, GrainColours::text);
+    addAndMakeVisible(mixLabel);
+
+    // === Focus (secondary — selector) ===
     // Items in uppercase for UI display; attachment maps by index to parameter values
     focusSelector.addItem("LOW", 1);
     focusSelector.addItem("MID", 2);
@@ -333,15 +348,19 @@ void GRAINAudioProcessorEditor::resized()
     auto headerArea = bounds.removeFromTop(50);
     bypassButton.setBounds(headerArea.removeFromRight(80).reduced(10));
 
-    // Footer (secondary controls)
+    // Footer (secondary controls — 4 items)
     auto footerArea = bounds.removeFromBottom(100);
     auto footerControls = footerArea.reduced(20, 10);
 
-    auto controlWidth = footerControls.getWidth() / 3;
+    auto controlWidth = footerControls.getWidth() / 4;
 
-    auto warmthArea = footerControls.removeFromLeft(controlWidth);
-    warmthLabel.setBounds(warmthArea.removeFromTop(20));
-    warmthSlider.setBounds(warmthArea);
+    auto inputArea = footerControls.removeFromLeft(controlWidth);
+    inputLabel.setBounds(inputArea.removeFromTop(20));
+    inputSlider.setBounds(inputArea);
+
+    auto mixArea = footerControls.removeFromLeft(controlWidth);
+    mixLabel.setBounds(mixArea.removeFromTop(20));
+    mixSlider.setBounds(mixArea);
 
     auto focusArea = footerControls.removeFromLeft(controlWidth);
     focusLabel.setBounds(focusArea.removeFromTop(20));
@@ -351,7 +370,7 @@ void GRAINAudioProcessorEditor::resized()
     outputLabel.setBounds(outputArea.removeFromTop(20));
     outputSlider.setBounds(outputArea);
 
-    // Main area (big knobs)
+    // Main area (big knobs — creative controls)
     auto mainArea = bounds;
     mainArea.reduce(70, 20);  // Leave space for meters
 
@@ -361,9 +380,9 @@ void GRAINAudioProcessorEditor::resized()
     grainLabel.setBounds(grainArea.removeFromTop(25));
     grainSlider.setBounds(grainArea);
 
-    auto mixArea = mainArea;
-    mixLabel.setBounds(mixArea.removeFromTop(25));
-    mixSlider.setBounds(mixArea);
+    auto warmthArea = mainArea;
+    warmthLabel.setBounds(warmthArea.removeFromTop(25));
+    warmthSlider.setBounds(warmthArea);
 }
 
 void GRAINAudioProcessorEditor::timerCallback()
@@ -427,17 +446,19 @@ juce::AudioProcessorValueTreeState apvts;
 
 ## Parameter ID Mapping
 
-| Control | Visual Label | Parameter ID | Type |
-|---------|-------------|--------------|------|
-| Grain knob | "GRAIN" | `drive` | float 0-1 |
-| Mix knob | "MIX" | `mix` | float 0-1 |
-| Warmth knob | "WARMTH" | `warmth` | float 0-1 |
-| Focus selector | "FOCUS" (items: LOW, MID, HIGH) | `focus` | choice 0-2 |
-| Output knob | "OUTPUT" | `output` | float -12 to +12 |
-| Bypass button | "BYPASS" | `bypass` | bool |
+| Control | Visual Label | Parameter ID | Type | Section |
+|---------|-------------|--------------|------|---------|
+| Grain knob | "GRAIN" | `drive` | float 0-1 | Main (big) |
+| Warmth knob | "WARMTH" | `warmth` | float 0-1 | Main (big) |
+| Input knob | "INPUT" | `inputGain` | float -12 to +12 | Footer (small) |
+| Mix knob | "MIX" | `mix` | float 0-1 | Footer (small) |
+| Focus selector | "FOCUS" (items: LOW, MID, HIGH) | `focus` | choice 0-2 | Footer (small) |
+| Output knob | "OUTPUT" | `output` | float -12 to +12 | Footer (small) |
+| Bypass button | "BYPASS" | `bypass` | bool | Header |
 
 > **Important:** The visual label "GRAIN" maps to parameter ID `"drive"` — the knob name is a user-facing alias.
 > Focus ComboBox displays items in uppercase ("LOW", "MID", "HIGH") while the parameter defines ("Low", "Mid", "High"). The attachment maps by index, so this is safe.
+> Input Gain allows the user to adjust the signal level entering the saturation stages without changing the channel volume in the DAW.
 
 ---
 
@@ -457,13 +478,15 @@ juce::AudioProcessorValueTreeState apvts;
 ### Layout
 - [ ] Fixed window size (500 x 350)
 - [ ] Header with title and bypass button
-- [ ] Main section with Grain and Mix knobs (larger)
-- [ ] Footer with Warmth, Focus, Output (smaller)
+- [ ] Main section with Grain and Warmth knobs (larger)
+- [ ] Footer with Input, Mix, Focus, Output (smaller)
 - [ ] Input and Output meters on sides
 
 ### Functionality
 - [ ] All controls connected to correct parameters
 - [ ] Grain knob connected to `"drive"` parameter ID
+- [ ] Warmth knob connected to `"warmth"` parameter ID
+- [ ] Input knob connected to `"inputGain"` parameter ID
 - [ ] Bypass button toggles with visual feedback
 - [ ] Focus selector shows LOW/MID/HIGH (uppercase)
 - [ ] Meters respond to audio levels
