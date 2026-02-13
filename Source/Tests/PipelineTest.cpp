@@ -39,7 +39,7 @@ private:
 
         for (int i = 0; i < 512; ++i)
         {
-            float result = pipeline.processSample(0.0f, 0.0f, 0.5f, 0.0f, 1.0f, 1.0f);
+            float const result = pipeline.processSample(0.0f, 0.0f, 0.5f, 0.0f, 1.0f, 1.0f);
             expectWithinAbsoluteError(result, 0.0f, 1e-5f);
         }
     }
@@ -55,13 +55,13 @@ private:
         // Use a sine wave instead of DC to avoid DC blocker convergence to 0
         float rmsInput = 0.0f;
         float rmsOutput = 0.0f;
-        int numSamples = 4410;  // 100ms
+        int const numSamples = 4410;  // 100ms
 
         for (int i = 0; i < numSamples; ++i)
         {
-            float phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
-            float input = 0.5f * std::sin(phase);
-            float result = pipeline.processSample(input, 0.3f, 0.5f, 0.5f, 0.0f, 1.0f);
+            float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
+            float const input = 0.5f * std::sin(phase);
+            float const result = pipeline.processSample(input, 0.3f, 0.5f, 0.5f, 0.0f, 1.0f);
             rmsInput += input * input;
             rmsOutput += result * result;
         }
@@ -81,10 +81,10 @@ private:
         GrainDSP::DSPPipeline pipeline;
         pipeline.prepare(44100.0f, GrainDSP::FocusMode::kMid, GrainDSP::kDefaultCalibration);
 
-        std::array<float, 6> extremes = {0.0f, 1.0f, -1.0f, 100.0f, -100.0f, 1e-30f};
-        for (float input : extremes)
+        std::array<float, 6> const extremes = {0.0f, 1.0f, -1.0f, 100.0f, -100.0f, 1e-30f};
+        for (float const input : extremes)
         {
-            float result = pipeline.processSample(input, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f);
+            float const result = pipeline.processSample(input, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f);
             expect(!std::isnan(result), "Output is NaN for input " + juce::String(input));
             expect(!std::isinf(result), "Output is Inf for input " + juce::String(input));
         }
@@ -101,19 +101,19 @@ private:
         // Low drive, full mix, unity gain
         float rmsSum = 0.0f;
         float inputRmsSum = 0.0f;
-        int numSamples = 44100;
+        int const numSamples = 44100;
 
         for (int i = 0; i < numSamples; ++i)
         {
-            float phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
-            float input = 0.5f * std::sin(phase);
-            float output = pipeline.processSample(input, 0.1f, 0.1f, 0.0f, 1.0f, 1.0f);
+            float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
+            float const input = 0.5f * std::sin(phase);
+            float const output = pipeline.processSample(input, 0.1f, 0.1f, 0.0f, 1.0f, 1.0f);
             rmsSum += output * output;
             inputRmsSum += input * input;
         }
 
-        float outputRms = std::sqrt(rmsSum / static_cast<float>(numSamples));
-        float inputRms = std::sqrt(inputRmsSum / static_cast<float>(numSamples));
+        float const outputRms = std::sqrt(rmsSum / static_cast<float>(numSamples));
+        float const inputRms = std::sqrt(inputRmsSum / static_cast<float>(numSamples));
 
         // At low settings, output should be within ~3dB of input
         expect(outputRms > inputRms * 0.5f,
@@ -123,4 +123,4 @@ private:
     }
 };
 
-static PipelineTest pipelineTest;
+static const PipelineTest kPipelineTest;

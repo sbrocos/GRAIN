@@ -22,80 +22,63 @@ constexpr int kMeterColumnWidth = 60;  // meter + padding
 }  // namespace
 
 //==============================================================================
+void GRAINAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight,
+                                                  const juce::String& suffix)
+{
+    slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, textBoxWidth, textBoxHeight);
+
+    if (suffix.isNotEmpty())
+    {
+        slider.setTextValueSuffix(suffix);
+    }
+
+    addAndMakeVisible(slider);
+}
+
+void GRAINAudioProcessorEditor::setupLabel(juce::Label& label)
+{
+    label.setJustificationType(juce::Justification::centred);
+    label.setColour(juce::Label::textColourId, GrainColours::kText);
+    addAndMakeVisible(label);
+}
+
+//==============================================================================
 GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : AudioProcessorEditor(&p), processor(p)
 {
     setSize(kEditorWidth, kEditorHeight);
 
-    // === Grain (main — creative) ===
-    // Visual label: "GRAIN" — Parameter ID: "drive"
-    grainSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    grainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible(grainSlider);
-    grainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
-                                                                                             "drive", grainSlider);
+    auto& apvts = processor.getAPVTS();
 
-    grainLabel.setJustificationType(juce::Justification::centred);
-    grainLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(grainLabel);
+    // === Main controls (creative — large knobs) ===
+    setupRotarySlider(grainSlider, 60, 20);
+    grainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "drive", grainSlider);
+    setupLabel(grainLabel);
 
-    // === Warmth (main — creative) ===
-    warmthSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    warmthSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible(warmthSlider);
-    warmthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
-                                                                                              "warmth", warmthSlider);
+    setupRotarySlider(warmthSlider, 60, 20);
+    warmthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "warmth", warmthSlider);
+    setupLabel(warmthLabel);
 
-    warmthLabel.setJustificationType(juce::Justification::centred);
-    warmthLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(warmthLabel);
+    // === Secondary controls (utility — small knobs) ===
+    setupRotarySlider(inputSlider, 50, 18, " dB");
+    inputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "inputGain", inputSlider);
+    setupLabel(inputLabel);
 
-    // === Input (secondary — utility) ===
-    inputSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    inputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    inputSlider.setTextValueSuffix(" dB");
-    addAndMakeVisible(inputSlider);
-    inputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
-                                                                                             "inputGain", inputSlider);
+    setupRotarySlider(mixSlider, 50, 18);
+    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "mix", mixSlider);
+    setupLabel(mixLabel);
 
-    inputLabel.setJustificationType(juce::Justification::centred);
-    inputLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(inputLabel);
-
-    // === Mix (secondary — utility) ===
-    mixSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    mixSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    addAndMakeVisible(mixSlider);
-    mixAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(), "mix", mixSlider);
-
-    mixLabel.setJustificationType(juce::Justification::centred);
-    mixLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(mixLabel);
-
-    // === Focus (secondary — selector) ===
-    // Items in uppercase for UI display; attachment maps by index to parameter values
+    // === Focus (selector) ===
     focusSelector.addItem("LOW", 1);
     focusSelector.addItem("MID", 2);
     focusSelector.addItem("HIGH", 3);
     addAndMakeVisible(focusSelector);
-    focusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.getAPVTS(),
-                                                                                               "focus", focusSelector);
+    focusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, "focus", focusSelector);
+    setupLabel(focusLabel);
 
-    focusLabel.setJustificationType(juce::Justification::centred);
-    focusLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(focusLabel);
-
-    // === Output (secondary — utility) ===
-    outputSlider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    outputSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    outputSlider.setTextValueSuffix(" dB");
-    addAndMakeVisible(outputSlider);
-    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.getAPVTS(),
-                                                                                              "output", outputSlider);
-
-    outputLabel.setJustificationType(juce::Justification::centred);
-    outputLabel.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(outputLabel);
+    setupRotarySlider(outputSlider, 50, 18, " dB");
+    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "output", outputSlider);
+    setupLabel(outputLabel);
 
     // === Bypass ===
     bypassButton.setClickingTogglesState(true);
@@ -104,8 +87,7 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
     bypassButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
     bypassButton.setColour(juce::TextButton::textColourOnId, GrainColours::kTextBright);
     addAndMakeVisible(bypassButton);
-    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.getAPVTS(),
-                                                                                              "bypass", bypassButton);
+    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
 
     // Start meter timer (30 FPS)
     startTimerHz(30);
@@ -123,7 +105,7 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     g.fillAll(GrainColours::kBackground);
 
     // Header area
-    auto headerArea = getLocalBounds().removeFromTop(kHeaderHeight);
+    const auto headerArea = getLocalBounds().removeFromTop(kHeaderHeight);
     g.setColour(GrainColours::kSurface);
     g.fillRect(headerArea);
 
@@ -137,8 +119,8 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     bounds.removeFromTop(kHeaderHeight);
     bounds.removeFromBottom(kFooterHeight);
 
-    auto inputMeterArea = bounds.removeFromLeft(kMeterColumnWidth).toFloat().reduced(10, 20);
-    auto outputMeterArea = bounds.removeFromRight(kMeterColumnWidth).toFloat().reduced(10, 20);
+    const auto inputMeterArea = bounds.removeFromLeft(kMeterColumnWidth).toFloat().reduced(10, 20);
+    const auto outputMeterArea = bounds.removeFromRight(kMeterColumnWidth).toFloat().reduced(10, 20);
 
     drawMeter(g, inputMeterArea, displayInputL, displayInputR, "IN");
     drawMeter(g, outputMeterArea, displayOutputL, displayOutputR, "OUT");
@@ -151,19 +133,19 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
 void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> area, float levelL, float levelR,
                                           const juce::String& label)
 {
-    auto labelHeight = 20.0f;
-    auto labelArea = area.removeFromTop(labelHeight);
+    const float labelHeight = 20.0f;
+    const auto labelArea = area.removeFromTop(labelHeight);
 
     g.setColour(GrainColours::kText);
     g.setFont(juce::Font(juce::FontOptions(12.0f)));
     g.drawText(label, labelArea, juce::Justification::centred);
 
     auto meterArea = area.reduced(2, 0);
-    auto meterBarWidth = meterArea.getWidth() / 2.0f - 2.0f;
+    const auto meterBarWidth = (meterArea.getWidth() / 2.0f) - 2.0f;
 
-    auto leftArea = meterArea.removeFromLeft(meterBarWidth);
+    const auto leftArea = meterArea.removeFromLeft(meterBarWidth);
     meterArea.removeFromLeft(4);  // Gap between L/R
-    auto rightArea = meterArea;
+    const auto rightArea = meterArea;
 
     // Meter backgrounds
     g.setColour(juce::Colours::black);
@@ -173,7 +155,7 @@ void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<flo
     // Draw level bars
     auto drawLevel = [&](juce::Rectangle<float> meterRect, float level)
     {
-        float dbLevel = juce::Decibels::gainToDecibels(level, -60.0f);
+        float const dbLevel = juce::Decibels::gainToDecibels(level, -60.0f);
         float normalized = juce::jmap(dbLevel, -60.0f, 0.0f, 0.0f, 1.0f);
         normalized = juce::jlimit(0.0f, 1.0f, normalized);
 
@@ -255,10 +237,10 @@ void GRAINAudioProcessorEditor::timerCallback()
     // Smooth meter decay
     // NOTE: Phase A repaints entire editor at 30 FPS for simplicity.
     // Phase B should optimize to repaint only meter areas.
-    float inL = processor.inputLevelL.load();
-    float inR = processor.inputLevelR.load();
-    float outL = processor.outputLevelL.load();
-    float outR = processor.outputLevelR.load();
+    float const inL = processor.inputLevelL.load();
+    float const inR = processor.inputLevelR.load();
+    float const outL = processor.outputLevelL.load();
+    float const outR = processor.outputLevelR.load();
 
     displayInputL = std::max(inL, displayInputL * kMeterDecay);
     displayInputR = std::max(inR, displayInputR * kMeterDecay);

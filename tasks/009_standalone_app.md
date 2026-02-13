@@ -226,7 +226,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -configuration Debug build
 
 # 2. Launch
-open ~/Projects/GRAIN/Builds/MacOSX/build/Debug/GRAIN.app
+open /Users/sbrocos/workspace/TFM/GRAIN/Builds/MacOSX/build/Debug/GRAIN.app
 
 # 3. Manual test
 # - Verify microphone permission dialog appears
@@ -258,10 +258,10 @@ Route DAW output → BlackHole → GRAIN Standalone input.
 After building:
 ```bash
 # Debug build
-~/Projects/GRAIN/Builds/MacOSX/build/Debug/GRAIN.app
+/Users/sbrocos/workspace/TFM/GRAIN/Builds/MacOSX/build/Debug/GRAIN.app
 
 # Release build
-~/Projects/GRAIN/Builds/MacOSX/build/Release/GRAIN.app
+/Users/sbrocos/workspace/TFM/GRAIN/Builds/MacOSX/build/Release/GRAIN.app
 ```
 
 ### Code Signing for Distribution

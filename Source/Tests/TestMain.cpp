@@ -12,7 +12,7 @@
 
 int main()
 {
-    juce::ScopedJuceInitialiser_GUI init;
+    juce::ScopedJuceInitialiser_GUI const init;
     juce::UnitTestRunner runner;
     runner.runAllTests();
 

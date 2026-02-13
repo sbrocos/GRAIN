@@ -43,10 +43,10 @@ private:
 
         juce::dsp::Oversampling<float> os(1, 1, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
 
-        constexpr int blockSize = 512;
-        os.initProcessing(blockSize);
+        constexpr int kBlockSize = 512;
+        os.initProcessing(kBlockSize);
 
-        juce::AudioBuffer<float> buffer(1, blockSize);
+        juce::AudioBuffer<float> buffer(1, kBlockSize);
         buffer.clear();
 
         juce::dsp::AudioBlock<float> block(buffer);
@@ -64,7 +64,7 @@ private:
         os.processSamplesDown(block);
 
         // Verify output is silent
-        for (int i = 0; i < blockSize; ++i)
+        for (int i = 0; i < kBlockSize; ++i)
         {
             expectWithinAbsoluteError(buffer.getSample(0, i), 0.0f, TestConstants::kOsTolerance);
         }
@@ -77,17 +77,17 @@ private:
 
         juce::dsp::Oversampling<float> os(1, 1, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
 
-        constexpr int blockSize = 256;
-        os.initProcessing(blockSize);
+        constexpr int kBlockSize = 256;
+        os.initProcessing(kBlockSize);
 
-        juce::AudioBuffer<float> buffer(1, blockSize);
+        juce::AudioBuffer<float> buffer(1, kBlockSize);
         buffer.clear();
 
         juce::dsp::AudioBlock<float> block(buffer);
         auto upBlock = os.processSamplesUp(block);
 
         // 2× should double the samples
-        expectEquals(static_cast<int>(upBlock.getNumSamples()), blockSize * 2);
+        expectEquals(static_cast<int>(upBlock.getNumSamples()), kBlockSize * 2);
 
         os.processSamplesDown(block);
     }
@@ -99,17 +99,17 @@ private:
 
         juce::dsp::Oversampling<float> os(1, 2, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
 
-        constexpr int blockSize = 256;
-        os.initProcessing(blockSize);
+        constexpr int kBlockSize = 256;
+        os.initProcessing(kBlockSize);
 
-        juce::AudioBuffer<float> buffer(1, blockSize);
+        juce::AudioBuffer<float> buffer(1, kBlockSize);
         buffer.clear();
 
         juce::dsp::AudioBlock<float> block(buffer);
         auto upBlock = os.processSamplesUp(block);
 
         // 4× should quadruple the samples
-        expectEquals(static_cast<int>(upBlock.getNumSamples()), blockSize * 4);
+        expectEquals(static_cast<int>(upBlock.getNumSamples()), kBlockSize * 4);
 
         os.processSamplesDown(block);
     }
@@ -137,19 +137,19 @@ private:
 
         juce::dsp::Oversampling<float> os(1, 1, juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
 
-        constexpr int blockSize = 512;
-        os.initProcessing(blockSize);
+        constexpr int kBlockSize = 512;
+        os.initProcessing(kBlockSize);
 
         const float sampleRate = 44100.0f;
         const float freq = 440.0f;
-        juce::AudioBuffer<float> buffer(1, blockSize);
+        juce::AudioBuffer<float> buffer(1, kBlockSize);
 
         // Process multiple blocks to get past initial transient
         for (int rep = 0; rep < 10; ++rep)
         {
-            for (int i = 0; i < blockSize; ++i)
+            for (int i = 0; i < kBlockSize; ++i)
             {
-                const float phase = GrainDSP::kTwoPi * freq * static_cast<float>(i + rep * blockSize) / sampleRate;
+                const float phase = GrainDSP::kTwoPi * freq * static_cast<float>(i + (rep * kBlockSize)) / sampleRate;
                 buffer.setSample(0, i, 0.5f * std::sin(phase));
             }
 
@@ -161,12 +161,12 @@ private:
 
         // After settling, signal should be close to original
         float rms = 0.0f;
-        for (int i = 0; i < blockSize; ++i)
+        for (int i = 0; i < kBlockSize; ++i)
         {
             const float s = buffer.getSample(0, i);
             rms += s * s;
         }
-        rms = std::sqrt(rms / static_cast<float>(blockSize));
+        rms = std::sqrt(rms / static_cast<float>(kBlockSize));
 
         // Original RMS of 0.5 sine ≈ 0.354
         // After oversampling round-trip, should be close

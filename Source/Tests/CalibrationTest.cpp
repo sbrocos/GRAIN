@@ -81,8 +81,8 @@ private:
             // Process 1000 samples of sine wave
             for (int i = 0; i < 1000; ++i)
             {
-                float sample = std::sin(2.0f * 3.14159f * 440.0f * static_cast<float>(i) / 44100.0f);
-                float result = pipeline.processSample(sample, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f);
+                float const sample = std::sin(2.0f * 3.14159f * 440.0f * static_cast<float>(i) / 44100.0f);
+                float const result = pipeline.processSample(sample, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f);
                 expect(!std::isnan(result), "NaN at sample " + juce::String(i));
                 expect(!std::isinf(result), "Inf at sample " + juce::String(i));
             }
@@ -97,16 +97,16 @@ private:
             GrainDSP::DSPPipeline pipelineA;
             GrainDSP::DSPPipeline pipelineB;
 
-            GrainDSP::CalibrationConfig configA = GrainDSP::kDefaultCalibration;
+            GrainDSP::CalibrationConfig const configA = GrainDSP::kDefaultCalibration;
             GrainDSP::CalibrationConfig configB = GrainDSP::kDefaultCalibration;
             configB.warmth.depth = 0.8f;  // Much more warmth
 
             pipelineA.prepare(44100.0f, GrainDSP::FocusMode::kMid, configA);
             pipelineB.prepare(44100.0f, GrainDSP::FocusMode::kMid, configB);
 
-            float sample = 0.5f;
-            float resultA = pipelineA.processSample(sample, 0.5f, 0.3f, 0.5f, 1.0f, 1.0f);
-            float resultB = pipelineB.processSample(sample, 0.5f, 0.3f, 0.5f, 1.0f, 1.0f);
+            float const sample = 0.5f;
+            float const resultA = pipelineA.processSample(sample, 0.5f, 0.3f, 0.5f, 1.0f, 1.0f);
+            float const resultB = pipelineB.processSample(sample, 0.5f, 0.3f, 0.5f, 1.0f, 1.0f);
 
             expect(std::abs(resultA - resultB) > 1e-6f,
                    "Expected different outputs, got A=" + juce::String(resultA) + " B=" + juce::String(resultB));
