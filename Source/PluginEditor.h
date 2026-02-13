@@ -46,17 +46,21 @@ class GRAINAudioProcessorEditor
     , private juce::Timer
 {
 public:
-    explicit GRAINAudioProcessorEditor(GRAINAudioProcessor&);
+    explicit GRAINAudioProcessorEditor(GRAINAudioProcessor& /*p*/);
     ~GRAINAudioProcessorEditor() override;
 
     //==============================================================================
-    void paint(juce::Graphics&) override;
+    void paint(juce::Graphics& /*g*/) override;
     void resized() override;
 
 private:
     //==============================================================================
     void timerCallback() override;
-    void drawMeter(juce::Graphics&, juce::Rectangle<float> area, float levelL, float levelR, const juce::String& label);
+    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR, const juce::String& label);
+
+    // Setup helpers (reduce constructor boilerplate)
+    void setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight, const juce::String& suffix = {});
+    void setupLabel(juce::Label& label);
 
     GRAINAudioProcessor& processor;
 

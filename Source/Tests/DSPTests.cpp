@@ -2,6 +2,7 @@
 #include "../DSP/DCBlocker.h"
 #include "../DSP/DSPHelpers.h"
 #include "../DSP/DynamicBias.h"
+#include "../DSP/GrainDSPPipeline.h"
 #include "../DSP/RMSDetector.h"
 #include "../DSP/SpectralFocus.h"
 #include "../DSP/WarmthProcessor.h"
@@ -37,6 +38,7 @@ public:
         runDCOffsetAccumulationTest();
         runWarmthTests();
         runSpectralFocusTests();
+        runStandaloneTests();
     }
 
 private:
@@ -763,6 +765,105 @@ private:
             result = focus.process(0.0f);
             expect(!std::isnan(result));
             expect(!std::isinf(result));
+        }
+    }
+
+    //==========================================================================
+    void runStandaloneTests()
+    {
+        beginTest("Standalone: meter level is non-negative");
+        {
+            juce::AudioBuffer<float> buffer(2, TestConstants::kBufferSize);
+
+            // Fill with sine wave
+            for (int i = 0; i < TestConstants::kBufferSize; ++i)
+            {
+                float const sample = 0.5f * std::sin(GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f);
+                buffer.setSample(0, i, sample);
+                buffer.setSample(1, i, sample);
+            }
+
+            float const magnitude = buffer.getMagnitude(0, 0, TestConstants::kBufferSize);
+            expect(magnitude >= 0.0f);
+            expect(magnitude <= 1.0f);
+        }
+
+        beginTest("Standalone: silence produces zero meter level");
+        {
+            juce::AudioBuffer<float> buffer(2, TestConstants::kBufferSize);
+            buffer.clear();
+
+            float const magnitude = buffer.getMagnitude(0, 0, TestConstants::kBufferSize);
+            expectWithinAbsoluteError(magnitude, 0.0f, TestConstants::kTolerance);
+        }
+
+        beginTest("Standalone: pipeline processes correctly at 44100 Hz");
+        {
+            GrainDSP::DSPPipeline pipeline;
+            pipeline.prepare(44100.0f, GrainDSP::FocusMode::kMid, GrainDSP::kDefaultCalibration);
+
+            float rmsOutput = 0.0f;
+            const int numSamples = 4410;  // 100ms at 44100
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
+                float const input = 0.5f * std::sin(phase);
+                float const output = pipeline.processSample(input, 0.3f, 0.5f, 0.5f, 0.5f, 1.0f);
+                expect(!std::isnan(output), "NaN at sample " + juce::String(i));
+                expect(!std::isinf(output), "Inf at sample " + juce::String(i));
+                rmsOutput += output * output;
+            }
+
+            rmsOutput = std::sqrt(rmsOutput / static_cast<float>(numSamples));
+            expect(rmsOutput > 0.0f, "Output is silent at 44100 Hz");
+        }
+
+        beginTest("Standalone: pipeline processes correctly at 48000 Hz");
+        {
+            GrainDSP::DSPPipeline pipeline;
+            pipeline.prepare(48000.0f, GrainDSP::FocusMode::kMid, GrainDSP::kDefaultCalibration);
+
+            float rmsOutput = 0.0f;
+            const int numSamples = 4800;  // 100ms at 48000
+
+            for (int i = 0; i < numSamples; ++i)
+            {
+                float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 48000.0f;
+                float const input = 0.5f * std::sin(phase);
+                float const output = pipeline.processSample(input, 0.3f, 0.5f, 0.5f, 0.5f, 1.0f);
+                expect(!std::isnan(output), "NaN at sample " + juce::String(i));
+                expect(!std::isinf(output), "Inf at sample " + juce::String(i));
+                rmsOutput += output * output;
+            }
+
+            rmsOutput = std::sqrt(rmsOutput / static_cast<float>(numSamples));
+            expect(rmsOutput > 0.0f, "Output is silent at 48000 Hz");
+        }
+
+        beginTest("Standalone: sample rate change re-initializes pipeline");
+        {
+            GrainDSP::DSPPipeline pipeline;
+
+            // First prepare at 44100
+            pipeline.prepare(44100.0f, GrainDSP::FocusMode::kMid, GrainDSP::kDefaultCalibration);
+            for (int i = 0; i < 100; ++i)
+            {
+                float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 44100.0f;
+                pipeline.processSample(0.5f * std::sin(phase), 0.3f, 0.5f, 0.5f, 0.5f, 1.0f);
+            }
+
+            // Re-prepare at 48000 (simulates device sample rate change)
+            pipeline.prepare(48000.0f, GrainDSP::FocusMode::kMid, GrainDSP::kDefaultCalibration);
+
+            // Process after re-prepare — should produce valid output
+            for (int i = 0; i < 100; ++i)
+            {
+                float const phase = GrainDSP::kTwoPi * 440.0f * static_cast<float>(i) / 48000.0f;
+                float const output = pipeline.processSample(0.5f * std::sin(phase), 0.3f, 0.5f, 0.5f, 0.5f, 1.0f);
+                expect(!std::isnan(output), "NaN after sample rate change at sample " + juce::String(i));
+                expect(!std::isinf(output), "Inf after sample rate change at sample " + juce::String(i));
+            }
         }
     }
 
