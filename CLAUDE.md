@@ -29,7 +29,7 @@ GRAIN/
 ├── tasks/                   # Implementation tasks (numbered)
 ├── Source/
 │   ├── DSP/
-│   │   ├── Constants.h          # All DSP constants (kTwoPi, kBiasAmount, etc.)
+│   │   ├── CalibrationConfig.h   # Centralized DSP calibration constants
 │   │   ├── DSPHelpers.h         # Pure utility functions (calculateCoefficient, applyMix, applyGain)
 │   │   ├── RMSDetector.h        # RMS envelope follower (stateful)
 │   │   ├── DynamicBias.h        # Asymmetric bias function (pure)
@@ -42,7 +42,8 @@ GRAIN/
 │   │   ├── TestMain.cpp         # Console app entry point for test runner
 │   │   ├── DSPTests.cpp         # Unit tests (per-module)
 │   │   ├── PipelineTest.cpp     # Integration tests (full pipeline)
-│   │   └── OversamplingTest.cpp # Oversampling unit tests
+│   │   ├── OversamplingTest.cpp # Oversampling unit tests
+│   │   └── CalibrationTest.cpp  # CalibrationConfig unit tests
 │   ├── PluginProcessor.h    # Audio processing logic
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
@@ -59,7 +60,7 @@ GRAIN/
 
 ### Current Pipeline (with oversampling)
 ```
-Input → [Upsample] → Dynamic Bias → tanh Waveshaper → Warmth → Focus → [Downsample] → Mix (dry/wet) → DC Blocker → Output Gain
+Input → Input Gain → [Upsample] → Dynamic Bias → tanh Waveshaper → Warmth → Focus → [Downsample] → Mix (dry/wet) → DC Blocker → Output Gain
 ```
 
 - Nonlinear stages (Bias → Waveshaper → Warmth → Focus) run at **oversampled rate**
@@ -71,6 +72,7 @@ Input → [Upsample] → Dynamic Bias → tanh Waveshaper → Warmth → Focus �
 All DSP modules live in `Source/DSP/` as individual header files. Each module is either:
 - **Pure function** (stateless): `Waveshaper.h`, `DynamicBias.h`, `WarmthProcessor.h`, `DSPHelpers.h`
 - **Stateful struct** (mono, one instance per channel): `DCBlocker.h`, `RMSDetector.h`, `SpectralFocus.h`
+- **Configuration**: `CalibrationConfig.h` — centralized DSP calibration constants
 
 The `GrainDSPPipeline.h` orchestrates the full chain as a mono `DSPPipeline` struct.
 Stereo is managed by `PluginProcessor` creating two pipeline instances (L/R).
@@ -81,11 +83,12 @@ Stereo is managed by `PluginProcessor` creating two pipeline instances (L/R).
 
 | ID | Name | Range | Default | Notes |
 |----|------|-------|---------|-------|
-| `drive` | Drive | 0.0–1.0 | 0.5 | Maps to 1x–4x gain |
+| `drive` | Drive | 0.0–1.0 | 0.5 | Maps to 1x–4x gain (UI label: "GRAIN") |
 | `mix` | Mix | 0.0–1.0 | 0.2 | 0 = dry, 1 = wet |
 | `output` | Output | -12 to +12 dB | 0.0 | Final level trim |
 | `warmth` | Warmth | 0.0–1.0 | 0.0 | Asymmetric even harmonics |
 | `bypass` | Bypass | bool | false | AudioParameterBool, via mix smoothing |
+| `inputGain` | Input Gain | -12 to +12 dB | 0.0 | Pre-saturation level trim |
 | `focus` | Focus | Low/Mid/High | Mid | Spectral focus shelf EQ (AudioParameterChoice) |
 
 ## Design Principles
@@ -235,7 +238,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- 56 tests passing (47 unit + 4 pipeline integration + 5 oversampling)
+- 59 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration)
 - VST3 + Standalone build clean
 - pluginval SUCCESS
 - Internal oversampling: 2× real-time, 4× offline bounce
@@ -254,11 +257,13 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | `tasks/006b_architecture_refactor.md` | Architecture refactor & test target | Done |
 | `tasks/006c_spectral_focus_reimpl.md` | Spectral focus mono module reimplementation | Done |
 | `tasks/007_oversampling.md` | Internal oversampling (2×/4×) | Done |
+| `tasks/008_plugin_editor.md` | Plugin editor Phase A + inputGain parameter | Done |
 
 ## Documentation
 
 See `docs/` folder:
 - `DELIVERABLE_EN.md` — Full PRD and academic deliverable
 - `DEVELOPMENT_ENVIRONMENT.md` — Setup instructions
-- `DSP_ARCHITECTURE.md` — Signal flow diagrams
+- `GRAIN_Code_Architecture.md` — Code architecture, class diagrams, signal flow
 - `TESTING.md` — Testing strategy
+- `Grain — Dsp Pipeline (diagram).pdf` — Visual signal flow diagram

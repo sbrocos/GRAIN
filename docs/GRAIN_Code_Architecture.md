@@ -9,30 +9,33 @@
 flowchart TB
     subgraph Plugin["GRAIN Plugin"]
         subgraph Audio["Audio Thread (Real-time)"]
-            PP[GrainProcessor]
-            DSP[DSP Pipeline]
+            PP[GRAINAudioProcessor]
+            DSP_L[DSPPipeline Left]
+            DSP_R[DSPPipeline Right]
         end
-        
+
         subgraph GUI["GUI Thread"]
-            PE[GrainEditor]
-            PARAMS[Parameter State]
+            PE[GRAINAudioProcessorEditor]
+            APVTS[APVTS Parameter State]
         end
-        
-        subgraph Core["DSP Modules"]
+
+        subgraph Core["DSP Modules (Source/DSP/)"]
             RMS[RMSDetector]
             BIAS[DynamicBias]
             WS[Waveshaper]
             WARM[WarmthProcessor]
             FOCUS[SpectralFocus]
-            OS[Oversampler]
+            DC[DCBlocker]
+            CAL[CalibrationConfig]
         end
     end
-    
-    PP --> DSP
-    DSP --> RMS & BIAS & WS & WARM & FOCUS
-    OS -.-> DSP
-    PE <--> PARAMS
-    PP <--> PARAMS
+
+    PP --> DSP_L & DSP_R
+    DSP_L & DSP_R --> BIAS & WS & WARM & FOCUS & DC
+    PP --> RMS
+    CAL -.-> DSP_L & DSP_R & RMS
+    PE <--> APVTS
+    PP <--> APVTS
 ```
 
 ---
@@ -43,9 +46,8 @@ flowchart TB
 
 | Class | Responsibility |
 |-------|----------------|
-| `GrainProcessor` | Main audio processor. Manages DSP pipeline, parameters, state save/load |
-| `GrainEditor` | UI component. Binds controls to parameters |
-| `GrainParameters` | Centralized parameter definitions with thread-safe access |
+| `GRAINAudioProcessor` | Main audio processor. Manages DSP pipeline, parameters (APVTS), state save/load |
+| `GRAINAudioProcessorEditor` | UI component. Binds controls to parameters via APVTS attachments |
 
 ### 2.2 DSP Modules (Custom)
 
@@ -56,8 +58,8 @@ flowchart TB
 | `Waveshaper` | tanh-based soft saturation in near-linear zone |
 | `WarmthProcessor` | Subtle even/odd harmonic balance |
 | `SpectralFocus` | Gentle Low/Mid/High spectral bias |
-| `Oversampler` | 2×/4× oversampling wrapper (uses JUCE's dsp::Oversampling) |
-| `GrainDSPPipeline` | Orchestrates all modules in correct order |
+| `CalibrationConfig` | Centralized DSP calibration constants |
+| `GrainDSPPipeline` | Orchestrates all modules in correct order (per-channel mono pipeline) |
 
 ---
 
@@ -65,98 +67,82 @@ flowchart TB
 
 ```mermaid
 classDiagram
-    class GrainProcessor {
-        -GrainParameters params
-        -GrainDSPPipeline dspPipeline
-        -juce::dsp::Oversampling oversampler
+    class GRAINAudioProcessor {
+        -AudioProcessorValueTreeState apvts
+        -DSPPipeline pipelineLeft
+        -DSPPipeline pipelineRight
+        -Oversampling oversampling
+        -RMSDetector rmsDetector
+        -SmoothedValue driveSmoothed
+        -SmoothedValue mixSmoothed
+        -SmoothedValue gainSmoothed
+        -SmoothedValue warmthSmoothed
+        -SmoothedValue inputGainSmoothed
         +prepareToPlay(sampleRate, blockSize)
         +processBlock(buffer, midiMessages)
+        +getAPVTS() AudioProcessorValueTreeState
         +getStateInformation(destData)
         +setStateInformation(data, sizeInBytes)
     }
-    
-    class GrainParameters {
-        -AudioProcessorValueTreeState apvts
-        +inputGain : RangedAudioParameter
-        +grain : RangedAudioParameter
-        +warmth : RangedAudioParameter
-        +focus : RangedAudioParameter
-        +mix : RangedAudioParameter
-        +outputGain : RangedAudioParameter
-        +createParameterLayout() ParameterLayout
-    }
-    
-    class GrainDSPPipeline {
-        -RMSDetector rmsDetector
-        -DynamicBias dynamicBias
-        -Waveshaper waveshaper
+
+    class DSPPipeline {
+        -DynamicBias bias
+        -Waveshaper shaper
         -WarmthProcessor warmth
-        -SpectralFocus spectralFocus
-        -SmoothedValue~float~ smoothedParams[]
-        +prepare(spec)
-        +process(context)
+        -SpectralFocus focus
+        -DCBlocker dcBlocker
+        +prepare(sampleRate, focusMode, calibration)
+        +processWet(input, envelope, drive, warmth) float
+        +processMixGain(dry, wet, mix, gain) float
         +reset()
-    }
-    
-    class RMSDetector {
-        -float rmsLevel
-        -float attackCoeff
-        -float releaseCoeff
-        +prepare(sampleRate)
-        +process(sample) float
-        +getRMSLevel() float
-        +reset()
-    }
-    
-    class DynamicBias {
-        -float biasAmount
-        +prepare(sampleRate)
-        +process(sample, rmsLevel) float
-        +setAmount(amount)
-    }
-    
-    class Waveshaper {
-        -float drive
-        +process(sample) float
-        +setDrive(drive)
-    }
-    
-    class WarmthProcessor {
-        -float warmthAmount
-        -float prevSample
-        +prepare(sampleRate)
-        +process(sample) float
-        +setWarmth(amount)
-    }
-    
-    class SpectralFocus {
-        -FocusMode mode
-        -BiquadFilter lowShelf
-        -BiquadFilter highShelf
-        +prepare(sampleRate)
-        +process(sample) float
-        +setFocus(mode)
-    }
-    
-    class GrainEditor {
-        -GrainProcessor& processor
-        -Slider grainSlider
-        -Slider warmthSlider
-        -ComboBox focusSelector
-        -Slider mixSlider
-        -Slider outputSlider
-        +paint(g)
-        +resized()
     }
 
-    GrainProcessor --> GrainParameters
-    GrainProcessor --> GrainDSPPipeline
-    GrainDSPPipeline --> RMSDetector
-    GrainDSPPipeline --> DynamicBias
-    GrainDSPPipeline --> Waveshaper
-    GrainDSPPipeline --> WarmthProcessor
-    GrainDSPPipeline --> SpectralFocus
-    GrainEditor --> GrainProcessor
+    class RMSDetector {
+        -float rmsSquared
+        -float attackCoeff
+        -float releaseCoeff
+        +prepare(sampleRate, config)
+        +process(sample) float
+        +reset()
+    }
+
+    class SpectralFocus {
+        -FocusMode mode
+        -float lowShelfState[]
+        -float highShelfState[]
+        +prepare(sampleRate, mode, config)
+        +process(sample) float
+        +setFocusMode(sampleRate, mode)
+        +reset()
+    }
+
+    class DCBlocker {
+        -float x1, y1
+        -float coefficient
+        +prepare(sampleRate)
+        +process(sample) float
+        +reset()
+    }
+
+    class GRAINAudioProcessorEditor {
+        -GRAINAudioProcessor& processor
+        -Slider grainSlider
+        -Slider warmthSlider
+        -Slider inputSlider
+        -Slider mixSlider
+        -Slider outputSlider
+        -ComboBox focusSelector
+        -TextButton bypassButton
+        +paint(g)
+        +resized()
+        -timerCallback()
+    }
+
+    GRAINAudioProcessor --> DSPPipeline : pipelineLeft/Right
+    GRAINAudioProcessor --> RMSDetector
+    DSPPipeline --> SpectralFocus
+    DSPPipeline --> DCBlocker
+    GRAINAudioProcessorEditor --> GRAINAudioProcessor
 ```
 
 ---
@@ -165,23 +151,25 @@ classDiagram
 
 ```mermaid
 flowchart LR
-    subgraph processBlock["GrainDSPPipeline::process()"]
+    subgraph processBlock["GRAINAudioProcessor::processBlock()"]
         direction LR
-        IN[Input Buffer] --> UP[Upsample 2×/4×]
-        UP --> IG[Apply Input Gain]
-        IG --> RMS[RMSDetector::process]
-        IG --> BIAS[DynamicBias::process]
-        RMS -.->|rmsLevel| BIAS
-        BIAS --> WS[Waveshaper::process]
-        WS --> WARM[WarmthProcessor::process]
-        WARM --> FOC[SpectralFocus::process]
+        IN[Input Buffer] --> IG[Input Gain]
+        IG --> DRY_COPY[Save Dry Copy]
+        IG --> UP[Upsample 2×/4×]
+        UP --> RMS[RMSDetector::process]
+        UP --> BIAS[DynamicBias]
+        RMS -.->|envelope| BIAS
+        BIAS --> WS[Waveshaper tanh]
+        WS --> WARM[WarmthProcessor]
+        WARM --> FOC[SpectralFocus]
         FOC --> DOWN[Downsample]
-        DOWN --> OG[Apply Output Gain]
-        OG --> MIX[Dry/Wet Mix]
-        MIX --> OUT[Output Buffer]
+        DOWN --> MIX[Dry/Wet Mix]
+        MIX --> DC[DC Blocker]
+        DC --> OG[Output Gain]
+        OG --> OUT[Output Buffer]
     end
-    
-    DRY[Dry Signal Copy] -.-> MIX
+
+    DRY_COPY -.-> MIX
 ```
 
 ---
@@ -191,102 +179,53 @@ flowchart LR
 ```
 GRAIN/
 ├── Source/
-│   ├── PluginProcessor.h
+│   ├── PluginProcessor.h        # Main audio processor (APVTS, oversampling, DSP orchestration)
 │   ├── PluginProcessor.cpp
-│   ├── PluginEditor.h
+│   ├── PluginEditor.h           # GUI (Phase A — functional layout + GrainColours)
 │   ├── PluginEditor.cpp
 │   │
-│   ├── Parameters/
-│   │   ├── GrainParameters.h
-│   │   └── GrainParameters.cpp
+│   ├── DSP/                     # All DSP modules (header-only)
+│   │   ├── CalibrationConfig.h  # Centralized calibration constants
+│   │   ├── DSPHelpers.h         # Pure utility functions (calculateCoefficient, applyMix, applyGain)
+│   │   ├── RMSDetector.h        # RMS envelope follower (stateful, mono)
+│   │   ├── DynamicBias.h        # Asymmetric bias function (pure)
+│   │   ├── Waveshaper.h         # tanh waveshaper (pure)
+│   │   ├── WarmthProcessor.h    # Warmth/asymmetry function (pure)
+│   │   ├── DCBlocker.h          # DC blocking filter (stateful, mono)
+│   │   ├── SpectralFocus.h      # Biquad shelf EQ (stateful, mono)
+│   │   └── GrainDSPPipeline.h   # Per-channel DSP pipeline orchestrator
 │   │
-│   ├── DSP/
-│   │   ├── GrainDSPPipeline.h
-│   │   ├── GrainDSPPipeline.cpp
-│   │   ├── RMSDetector.h
-│   │   ├── RMSDetector.cpp
-│   │   ├── DynamicBias.h
-│   │   ├── DynamicBias.cpp
-│   │   ├── Waveshaper.h
-│   │   ├── Waveshaper.cpp
-│   │   ├── WarmthProcessor.h
-│   │   ├── WarmthProcessor.cpp
-│   │   ├── SpectralFocus.h
-│   │   └── SpectralFocus.cpp
-│   │
-│   └── Utils/
-│       ├── Constants.h          // Default values, ranges
-│       └── DSPHelpers.h         // Utility functions
+│   └── Tests/                   # Unit & integration tests (separate GRAINTests.jucer target)
+│       ├── TestMain.cpp         # Console app entry point
+│       ├── DSPTests.cpp         # Unit tests (per-module)
+│       ├── PipelineTest.cpp     # Integration tests (full pipeline)
+│       ├── OversamplingTest.cpp # Oversampling unit tests
+│       └── CalibrationTest.cpp  # CalibrationConfig unit tests
 │
-├── Tests/
-│   ├── DSP/
-│   │   ├── RMSDetectorTest.cpp
-│   │   ├── WaveshaperTest.cpp
-│   │   ├── DynamicBiasTest.cpp
-│   │   └── SpectralFocusTest.cpp
-│   └── Integration/
-│       └── PipelineTest.cpp
+├── scripts/
+│   ├── format.sh                # clang-format wrapper
+│   └── run_tests.sh             # Build & run all unit tests (CI-friendly)
 │
-├── Standalone/
-│   ├── Main.cpp
-│   └── StandaloneApp.h
-│
-├── Resources/
-│   └── (future: presets, images)
-│
-├── GRAIN.jucer                   // Projucer project file
-└── CMakeLists.txt               // Optional: CMake build
+├── GRAIN.jucer                  # Projucer project (VST3 + Standalone)
+├── GRAINTests.jucer             # Projucer project (ConsoleApp test runner)
+└── CLAUDE.md                    # AI context file
 ```
 
 ---
 
 ## 6. Parameter Specification
 
-```cpp
-// GrainParameters.h - Parameter IDs and ranges
+Parameters are defined directly in `GRAINAudioProcessor::createParameterLayout()` using JUCE's APVTS system. No separate `GrainParameters` class exists — the processor owns the APVTS (private, accessed via `getAPVTS()`).
 
-namespace ParamIDs {
-    constexpr const char* INPUT_GAIN = "inputGain";
-    constexpr const char* GRAIN      = "grain";
-    constexpr const char* WARMTH     = "warmth";
-    constexpr const char* FOCUS      = "focus";
-    constexpr const char* MIX        = "mix";
-    constexpr const char* OUTPUT     = "outputGain";
-}
-
-namespace ParamRanges {
-    // Input Gain: -12dB to +12dB (limited drive)
-    constexpr float INPUT_MIN = -12.0f;
-    constexpr float INPUT_MAX = 12.0f;
-    constexpr float INPUT_DEFAULT = 0.0f;
-    
-    // Grain (saturation amount): 0% to 100%
-    constexpr float GRAIN_MIN = 0.0f;
-    constexpr float GRAIN_MAX = 100.0f;
-    constexpr float GRAIN_DEFAULT = 25.0f;
-    
-    // Warmth (even/odd balance): -100% to +100%
-    constexpr float WARMTH_MIN = -100.0f;
-    constexpr float WARMTH_MAX = 100.0f;
-    constexpr float WARMTH_DEFAULT = 0.0f;
-    
-    // Focus: 0=Low, 1=Mid, 2=High
-    constexpr int FOCUS_LOW = 0;
-    constexpr int FOCUS_MID = 1;
-    constexpr int FOCUS_HIGH = 2;
-    constexpr int FOCUS_DEFAULT = FOCUS_MID;
-    
-    // Mix (dry/wet): 0% to 100%
-    constexpr float MIX_MIN = 0.0f;
-    constexpr float MIX_MAX = 100.0f;
-    constexpr float MIX_DEFAULT = 15.0f;  // Subtle by default
-    
-    // Output Gain: -12dB to +12dB
-    constexpr float OUTPUT_MIN = -12.0f;
-    constexpr float OUTPUT_MAX = 12.0f;
-    constexpr float OUTPUT_DEFAULT = 0.0f;
-}
-```
+| ID | Name | Type | Range | Default | Notes |
+|----|------|------|-------|---------|-------|
+| `drive` | Drive | Float | 0.0–1.0 (step 0.01) | 0.5 | Maps to saturation intensity (UI label: "GRAIN") |
+| `mix` | Mix | Float | 0.0–1.0 (step 0.01) | 0.2 | Dry/wet blend |
+| `output` | Output | Float | -12.0–+12.0 dB (step 0.1) | 0.0 | Final output trim |
+| `bypass` | Bypass | Bool | true/false | false | Soft bypass via mix → 0 smoothing |
+| `warmth` | Warmth | Float | 0.0–1.0 (step 0.01) | 0.0 | Even harmonic asymmetry |
+| `inputGain` | Input Gain | Float | -12.0–+12.0 dB (step 0.1) | 0.0 | Pre-saturation level trim |
+| `focus` | Focus | Choice | Low/Mid/High | Mid (index 1) | Spectral emphasis shelf EQ |
 
 ---
 
@@ -294,240 +233,221 @@ namespace ParamRanges {
 
 ### 7.1 RMS Detector (Slow Envelope)
 
+Location: `Source/DSP/RMSDetector.h` — stateful struct, one instance shared across channels (mono-summed).
+
 ```cpp
-// Conceptual implementation
-class RMSDetector {
-public:
-    void prepare(double sampleRate) {
-        // Very slow time constants (100-300ms)
-        float attackTimeMs = 150.0f;
-        float releaseTimeMs = 300.0f;
-        
-        attackCoeff = std::exp(-1.0f / (sampleRate * attackTimeMs / 1000.0f));
-        releaseCoeff = std::exp(-1.0f / (sampleRate * releaseTimeMs / 1000.0f));
+// GrainDSP::RMSDetector (actual implementation)
+struct RMSDetector {
+    float envelope = 0.0f;
+    float attackCoeff = 0.0f;
+    float releaseCoeff = 0.0f;
+
+    void prepare(float sampleRate, const RMSCalibration& cal) {
+        attackCoeff = calculateCoefficient(sampleRate, cal.attackMs);
+        releaseCoeff = calculateCoefficient(sampleRate, cal.releaseMs);
     }
-    
-    float process(float sample) {
-        float squaredInput = sample * sample;
-        float coeff = (squaredInput > rmsSquared) ? attackCoeff : releaseCoeff;
-        rmsSquared = coeff * rmsSquared + (1.0f - coeff) * squaredInput;
-        return std::sqrt(rmsSquared);
+
+    float process(float input) {
+        const float inputSquared = input * input;
+        const float coeff = (inputSquared > envelope) ? attackCoeff : releaseCoeff;
+        envelope = (envelope * coeff) + (inputSquared * (1.0f - coeff));
+        return std::sqrt(envelope);
     }
-    
-private:
-    float rmsSquared = 0.0f;
-    float attackCoeff, releaseCoeff;
 };
 ```
 
-### 7.2 Waveshaper (tanh in near-linear zone)
+Time constants configured via `CalibrationConfig` (default: 150ms attack, 300ms release).
+
+### 7.2 Waveshaper (tanh with linear drive mapping)
+
+Location: `Source/DSP/Waveshaper.h` — pure inline function (stateless).
 
 ```cpp
-// Soft saturation with controlled drive
-class Waveshaper {
-public:
-    float process(float sample) {
-        // drive maps grain parameter to small range (0.1 - 0.5)
-        // to stay in near-linear tanh region
-        return std::tanh(sample * drive) / std::tanh(drive);
-    }
-    
-    void setGrain(float grainPercent) {
-        // Map 0-100% to 0.1-0.5 drive range
-        drive = juce::jmap(grainPercent, 0.0f, 100.0f, 0.1f, 0.5f);
-    }
-    
-private:
-    float drive = 0.25f;
-};
-```
-
-### 7.3 Dynamic Bias (Level-dependent asymmetry)
-
-```cpp
-// Triode-like asymmetry based on RMS level
-class DynamicBias {
-public:
-    float process(float sample, float rmsLevel) {
-        // Small bias proportional to RMS (promotes even harmonics)
-        float bias = rmsLevel * biasAmount * 0.1f;  // Very subtle
-        return sample + bias * sample * sample;     // Quadratic term
-    }
-    
-    void setAmount(float amount) {
-        biasAmount = amount;
-    }
-    
-private:
-    float biasAmount = 0.0f;
-};
-```
-
-### 7.4 Oversampling Integration
-
-```cpp
-// In GrainProcessor::prepareToPlay()
-void prepareToPlay(double sampleRate, int samplesPerBlock) {
-    // 2× for real-time (index 1), 4× for offline (index 2)
-    int oversamplingFactor = isNonRealtime() ? 2 : 1;
-    
-    oversampler = std::make_unique<juce::dsp::Oversampling<float>>(
-        2,                              // stereo
-        oversamplingFactor,             // 2^factor (2× or 4×)
-        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR,
-        true                            // max quality
-    );
-    
-    oversampler->initProcessing(samplesPerBlock);
-    
-    // Prepare DSP at oversampled rate
-    dspPipeline.prepare({
-        sampleRate * oversampler->getOversamplingFactor(),
-        static_cast<uint32>(samplesPerBlock * oversampler->getOversamplingFactor()),
-        2
-    });
+// GrainDSP::applyWaveshaper (actual implementation)
+inline float applyWaveshaper(float input, float drive) {
+    const float gained = input * (1.0f + drive * 3.0f);  // 1x to 4x gain
+    return std::tanh(gained);
 }
 ```
 
-### 7.5 Thread-Safe Parameter Smoothing
+Drive is normalized 0.0–1.0 (from the `drive` parameter), mapped to 1x–4x pre-tanh gain.
+
+### 7.3 Dynamic Bias (Level-dependent asymmetry)
+
+Location: `Source/DSP/DynamicBias.h` — pure inline function (stateless).
 
 ```cpp
-// In GrainDSPPipeline
-class GrainDSPPipeline {
-public:
-    void prepare(const juce::dsp::ProcessSpec& spec) {
-        // Smooth over ~20ms to avoid zipper noise
-        double smoothTimeSeconds = 0.02;
-        
-        smoothedGrain.reset(spec.sampleRate, smoothTimeSeconds);
-        smoothedWarmth.reset(spec.sampleRate, smoothTimeSeconds);
-        smoothedMix.reset(spec.sampleRate, smoothTimeSeconds);
-        // ... etc
+// GrainDSP::applyDynamicBias (actual implementation)
+inline float applyDynamicBias(float input, float rmsLevel, float biasAmount,
+                               const BiasCalibration& cal) {
+    const float bias = rmsLevel * biasAmount * cal.scale;
+    return input + (bias * input * input);  // Quadratic term for even harmonics
+}
+```
+
+Bias amount comes from `CalibrationConfig` (fixed at calibration time, not a user parameter).
+
+### 7.4 Oversampling Integration
+
+Location: `Source/PluginProcessor.cpp` — `prepareToPlay()`.
+
+```cpp
+// GRAINAudioProcessor::prepareToPlay() (simplified from actual)
+currentOversamplingOrder = isNonRealtime() ? 2 : 1;  // 2^1=2x, 2^2=4x
+
+oversampling = std::make_unique<juce::dsp::Oversampling<float>>(
+    static_cast<size_t>(getTotalNumInputChannels()),
+    currentOversamplingOrder,
+    juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true);
+
+oversampling->initProcessing(static_cast<size_t>(samplesPerBlock));
+setLatencySamples(static_cast<int>(oversampling->getLatencyInSamples()));
+
+const double oversampledRate = sampleRate *
+    static_cast<double>(oversampling->getOversamplingFactor());
+
+// Per-channel pipelines prepared at oversampled rate
+pipelineLeft.prepare(static_cast<float>(oversampledRate), focusMode, calibration);
+pipelineRight.prepare(static_cast<float>(oversampledRate), focusMode, calibration);
+```
+
+### 7.5 Per-Channel DSP Pipeline
+
+Location: `Source/DSP/GrainDSPPipeline.h` — mono struct, two instances (L/R) for stereo.
+
+```cpp
+// GrainDSP::DSPPipeline (simplified from actual)
+struct DSPPipeline {
+    DCBlocker dcBlocker;
+    SpectralFocus spectralFocus;
+
+    // Nonlinear stages (run at oversampled rate)
+    float processWet(float input, float envelope, float drive, float warmth) {
+        const float biased = applyDynamicBias(input, envelope, config.bias.amount, config.bias);
+        const float shaped  = applyWaveshaper(biased, drive);
+        const float warmed  = applyWarmth(shaped, warmth, config.warmth);
+        return spectralFocus.process(warmed);
     }
-    
-    void updateParameters(float grain, float warmth, float mix /* ... */) {
-        smoothedGrain.setTargetValue(grain);
-        smoothedWarmth.setTargetValue(warmth);
-        smoothedMix.setTargetValue(mix);
+
+    // Linear stages (run at original rate)
+    float processMixGain(float dry, float wet, float mix, float gain) {
+        const float mixed     = applyMix(dry, wet, mix);
+        const float dcBlocked = dcBlocker.process(mixed);
+        return applyGain(dcBlocked, gain);
     }
-    
-    void processSample(float& left, float& right) {
-        // Get smoothed values (advances smoother by 1 sample)
-        float currentGrain = smoothedGrain.getNextValue();
-        float currentWarmth = smoothedWarmth.getNextValue();
-        float currentMix = smoothedMix.getNextValue();
-        
-        // Process with current smoothed values...
-    }
-    
-private:
-    juce::SmoothedValue<float> smoothedGrain;
-    juce::SmoothedValue<float> smoothedWarmth;
-    juce::SmoothedValue<float> smoothedMix;
 };
 ```
+
+Parameter smoothing (`SmoothedValue`) lives in `GRAINAudioProcessor`, not in the pipeline.
+Drive/warmth are smoothed at oversampled rate; mix/gain/inputGain at original rate. All smoothers use 20ms ramp time.
 
 ---
 
 ## 8. Testing Strategy
 
-### 8.1 Unit Tests (per DSP module)
+Tests run via a separate console application (`GRAINTests.jucer`). See `docs/TESTING.md` for full details.
 
-| Test | What to verify |
-|------|----------------|
-| `RMSDetectorTest` | Correct envelope for known input (sine, silence) |
-| `WaveshaperTest` | Output bounded, symmetric for symmetric input |
-| `DynamicBiasTest` | Even harmonic presence, no DC offset accumulation |
-| `SpectralFocusTest` | Frequency response matches Low/Mid/High modes |
-| `WarmthProcessorTest` | Subtle spectral shift, no instability |
+### 8.1 Unit Tests — `Source/Tests/DSPTests.cpp` (47 tests)
 
-### 8.2 Integration Tests
+| Category | What it verifies |
+|----------|-----------------|
+| Waveshaper (4) | Zero passthrough, symmetry, bounded output, near-linear for small values |
+| Mix (3) | Full dry, full wet, 50/50 blend |
+| Gain (3) | Unity, double (+6dB), zero (silence) |
+| Bypass (2) | Mix=0 returns dry, full processing when mix>0 |
+| Buffer (2) | Stability with constant input, no state leak |
+| Parameter change (1) | No discontinuities on silent input |
+| RMS Detector (7) | Coefficient calc, zero input, DC convergence, sine RMS, non-negative, slow transients, reset |
+| Dynamic Bias (6) | Zero RMS, zero amount, positive/negative asymmetry, even harmonics, scaling, bounded |
+| DC Blocker (3) | Passes AC, removes DC, reset clears state |
+| DC Offset (1) | Bias + DC blocker pipeline near-zero mean |
+| Warmth (6) | Zero warmth, zero input, bounded, asymmetry, continuous, buffer stability |
+| Focus (6) | Mid unity, reset, silence, Low boost, High boost, mono independence, no NaN/Inf |
 
-| Test | What to verify |
-|------|----------------|
-| `PipelineTest` | Full chain: silence in → silence out |
-| `PipelineTest` | Sine wave: output level ≈ input level at low settings |
-| `PipelineTest` | Mix at 0%: output == input (bit-exact dry) |
-| `PipelineTest` | No NaN/Inf on edge cases |
+### 8.2 Integration & Other Tests
+
+| File | Tests | What it verifies |
+|------|-------|-----------------|
+| `PipelineTest.cpp` | 4 | Silence→silence, mix=0 dry, no NaN/Inf, level match at low settings |
+| `OversamplingTest.cpp` | 5 | Silence, 2x/4x block sizes, latency bounds, signal passthrough |
+| `CalibrationTest.cpp` | 3 | Default matches constants, extreme no NaN/Inf, different configs differ |
+
+**Total: 59 tests**
 
 ### 8.3 Validation (pluginval + manual)
 
 ```bash
-# Automated VST3 compliance
-pluginval --strictness-level 10 ./build/GRAIN.vst3
+# Automated VST3 compliance (use app bundle path)
+/Applications/pluginval.app/Contents/MacOS/pluginval \
+  --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
-# Manual listening tests per validation plan
+# Strict validation (before release)
+/Applications/pluginval.app/Contents/MacOS/pluginval \
+  --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 ```
 
 ---
 
-## 9. Implementation Order (Recommended)
+## 9. Implementation Order (Actual)
 
 ```mermaid
 flowchart TD
-    P1["Phase 1: Skeleton"]
-    P2["Phase 2: Core DSP"]
-    P3["Phase 3: Integration"]
-    P4["Phase 4: Polish"]
-    
-    P1 --> P2 --> P3 --> P4
-    
-    subgraph Phase1["Phase 1 (Days 1-3)"]
-        S1[JUCE project setup]
-        S2[GrainParameters with APVTS]
-        S3[Basic passthrough processor]
-        S4[Minimal editor with sliders]
+    P1["Phase 1: Skeleton"] --> P2["Phase 2: Core DSP"]
+    P2 --> P3["Phase 3: Integration"]
+    P3 --> P4["Phase 4: Editor & Polish"]
+
+    subgraph Phase1["Phase 1: Skeleton"]
+        S1["Task 001: Testing infrastructure"]
+        S2["Task 002: MVP tanh waveshaper + APVTS"]
     end
-    
-    subgraph Phase2["Phase 2 (Days 4-10)"]
-        D1[Waveshaper + tests]
-        D2[RMSDetector + tests]
-        D3[DynamicBias + tests]
-        D4[WarmthProcessor + tests]
-        D5[SpectralFocus + tests]
+
+    subgraph Phase2["Phase 2: Core DSP"]
+        D1["Task 003: RMS Detector"]
+        D2["Task 004: Dynamic Bias"]
+        D3["Task 005: Warmth"]
+        D4["Task 006: Spectral Focus"]
     end
-    
-    subgraph Phase3["Phase 3 (Days 11-16)"]
-        I1[GrainDSPPipeline assembly]
-        I2[Oversampling integration]
-        I3[Parameter smoothing]
-        I4[Stereo linking]
+
+    subgraph Phase3["Phase 3: Integration"]
+        I1["Task 006b: Architecture refactor"]
+        I2["Task 006c: SpectralFocus mono reimpl"]
+        I3["Task 007: Oversampling 2x/4x"]
     end
-    
-    subgraph Phase4["Phase 4 (Days 17-21)"]
-        V1[Listening validation]
-        V2[pluginval compliance]
-        V3[Standalone app]
-        V4[Documentation]
+
+    subgraph Phase4["Phase 4: Editor & Polish"]
+        V1["Task 008: Plugin Editor Phase A + inputGain"]
+        V2["Listening validation"]
+        V3["pluginval compliance"]
+        V4["Documentation updates"]
     end
 ```
 
+All phases through Phase 4 are complete. See `CLAUDE.md` Task Files table for full status.
+
 ---
 
-## 10. JUCE-Specific Notes for Ruby Developers
+## 10. C++/JUCE Quick Reference
 
-| Ruby Concept | C++/JUCE Equivalent |
-|--------------|---------------------|
-| `attr_accessor` | Public member + getter/setter methods |
-| Duck typing | Templates or `juce::var` for dynamic types |
-| Blocks/Procs | Lambdas: `[&](float x) { return x * 2; }` |
-| `nil` | `nullptr` for pointers, `std::optional` for values |
-| Garbage collection | RAII + `std::unique_ptr` / `std::shared_ptr` |
-| Mixins | Multiple inheritance or composition |
-| `initialize` | Constructor: `ClassName() { }` |
+| C++ Concept | JUCE Usage in GRAIN |
+|-------------|---------------------|
+| Lambdas | Used in meter drawing: `auto drawLevel = [&](rect, level) { ... }` |
+| RAII | `std::unique_ptr<Oversampling>` auto-cleans on destruction |
+| `std::atomic` | Level meters: `inputLevelL.store()` / `.load()` for thread-safe GUI reads |
+| Templates | `SmoothedValue<float>`, `AudioBuffer<float>`, `Oversampling<float>` |
+| Inline functions | All stateless DSP modules (`applyWaveshaper`, `applyDynamicBias`, etc.) |
+| Structs | DSP modules use `struct` (public by default) for data + methods |
 
 ### Memory Management Pattern
 
 ```cpp
-// JUCE uses RAII extensively
-class GrainProcessor {
-    // Automatic cleanup when GrainProcessor is destroyed
-    std::unique_ptr<GrainDSPPipeline> dspPipeline;
-    
-    GrainProcessor() {
-        dspPipeline = std::make_unique<GrainDSPPipeline>();
+// GRAIN uses RAII — unique_ptr for dynamic allocations
+class GRAINAudioProcessor {
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
+
+    void prepareToPlay(double sampleRate, int samplesPerBlock) {
+        oversampling = std::make_unique<juce::dsp::Oversampling<float>>(...);
+        // Automatically freed when processor is destroyed or re-prepared
     }
-    // No explicit destructor needed - unique_ptr handles it
 };
 ```
 

@@ -12,21 +12,24 @@ GRAIN uses a pragmatic testing approach combining automated validation, unit tes
 
 ### Installation
 
-```bash
-brew install pluginval
-```
+Download from [GitHub](https://github.com/Tracktion/pluginval) or use the app bundle at `/Applications/pluginval.app`.
+
+> **Note:** `brew install pluginval` may not work reliably. Use the app bundle path instead.
 
 ### Usage
 
 ```bash
-# Basic validation
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# Use app bundle path (symlink in /usr/local/bin may not work)
+PLUGINVAL=/Applications/pluginval.app/Contents/MacOS/pluginval
+
+# Basic validation (during development — skip GUI tests for CI)
+$PLUGINVAL --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 # Strict validation (recommended before release)
-pluginval --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+$PLUGINVAL --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 # Verbose output
-pluginval --verbose --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+$PLUGINVAL --skip-gui-tests --verbose --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 ```
 
 ### When to Run
@@ -83,13 +86,18 @@ JUCE includes `juce::UnitTestRunner`. Tests live in `Source/Tests/`.
 
 ### Running Tests
 
-```bash
-# Build and run test target
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - Standalone Plugin" \
-  -configuration Debug build
+Tests run via a separate console application target (`GRAINTests.jucer`), not the plugin target.
 
-# Run tests (from standalone app console or dedicated test runner)
+```bash
+# Quick: build + run via script
+./scripts/run_tests.sh
+
+# Manual: build test runner, then execute
+xcodebuild -project Builds/MacOSX-Tests/GRAINTests.xcodeproj \
+  -scheme "GRAINTests - ConsoleApp" -configuration Debug build
+./Builds/MacOSX-Tests/build/Debug/GRAINTests
+
+# Returns exit code 0 on success, 1 on failure (CI-friendly)
 ```
 
 ---
@@ -134,9 +142,17 @@ Use consistent reference tracks:
 
 ---
 
-## 4. Integration Tests (Future)
+## 4. Integration & Oversampling Tests
 
-Not required for MVP. Would include:
+Already implemented in the test suite:
+
+| File | Tests | What it verifies |
+|------|-------|-----------------|
+| `PipelineTest.cpp` | 4 | Full DSP chain: silence→silence, mix=0 dry, no NaN/Inf, level match |
+| `OversamplingTest.cpp` | 5 | Silence passthrough, 2x/4x block sizes, latency bounds, signal integrity |
+| `CalibrationTest.cpp` | 3 | Default config matches constants, extreme values safe, configs differ |
+
+### Future additions
 - Loading in headless host
 - Automated A/B comparison
 - CPU performance benchmarks
@@ -149,24 +165,32 @@ Not required for MVP. Would include:
 
 ```bash
 # 1. Make changes
-# 2. Build
+
+# 2. Build VST3
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - VST3" -configuration Debug build
 
-# 3. Run pluginval
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# 3. Run unit tests
+./scripts/run_tests.sh
 
-# 4. If pass, test in DAW
-# 5. If pass, commit
+# 4. Run pluginval
+/Applications/pluginval.app/Contents/MacOS/pluginval \
+  --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+
+# 5. If pass → test in DAW
+# 6. If pass → commit
 ```
 
 ### Before Release
 
 ```bash
 # Full validation suite
-pluginval --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+/Applications/pluginval.app/Contents/MacOS/pluginval \
+  --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 # Run unit tests
+./scripts/run_tests.sh
+
 # Perform full listening test checklist
 # Test in multiple DAWs (Logic, Ableton)
 ```
@@ -178,13 +202,22 @@ pluginval --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.v
 ```
 GRAIN/
 ├── Source/
-│   ├── PluginProcessor.cpp
-│   ├── PluginProcessor.h
+│   ├── DSP/                     # DSP modules under test
+│   │   └── *.h                  # Header-only modules
 │   └── Tests/
-│       └── DSPTests.cpp      # Unit tests
+│       ├── TestMain.cpp         # Console app entry point
+│       ├── DSPTests.cpp         # Unit tests (47 tests: waveshaper, mix, gain, RMS, bias, DC, warmth, focus)
+│       ├── PipelineTest.cpp     # Integration tests (4 tests: full pipeline)
+│       ├── OversamplingTest.cpp # Oversampling tests (5 tests)
+│       └── CalibrationTest.cpp  # CalibrationConfig tests (3 tests)
+├── GRAINTests.jucer             # Separate Projucer project for test runner
+├── scripts/
+│   └── run_tests.sh             # Build & run all tests
 └── docs/
-    └── TESTING.md            # This file
+    └── TESTING.md               # This file
 ```
+
+**Current count:** 59 tests (47 unit + 4 pipeline + 5 oversampling + 3 calibration)
 
 ---
 

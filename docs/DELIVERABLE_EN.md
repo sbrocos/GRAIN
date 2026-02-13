@@ -41,7 +41,7 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 ### 4.1 Scope (V1)
 - **VST3** plugin for **macOS Apple Silicon (ARM64)**.
 - Minimum guaranteed sample rate: **44.1 kHz**.
-- User parameters: Input/Drive, Grain, Warmth, Focus (Low/Mid/High), Mix, Output Gain.
+- User parameters: Input Gain, Drive (Grain), Warmth, Focus (Low/Mid/High), Mix, Output Gain, Bypass.
 - Internal oversampling: 2× real-time; 4× offline render.
 - Stereo: linked processing (shared detector).
 - Latency: 0 samples in real-time.
@@ -80,14 +80,17 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 
 ## 6. Technical design (DSP)
 ### 6.1 Pipeline overview
-1) Input/Drive  
-2) Slow RMS level detector  
-3) Dynamic Bias (mild asymmetry driven by RMS)  
-4) Micro waveshaper (tanh)  
-5) Harmonic weighting / Warmth (very subtle)  
-6) Spectral Focus (Low/Mid/High)  
-7) Output Gain  
-8) Mix (wet/dry)
+1) Input Gain (-12 to +12 dB)
+2) Upsample (2× real-time, 4× offline)
+3) Slow RMS level detector (shared mono-summed envelope)
+4) Dynamic Bias (mild asymmetry driven by RMS)
+5) Micro waveshaper (tanh)
+6) Harmonic weighting / Warmth (very subtle)
+7) Spectral Focus (Low/Mid/High)
+8) Downsample
+9) Mix (dry/wet)
+10) DC Blocker
+11) Output Gain
 
 ### 6.2 Rationale for DSP choices
 - **tanh**: progressive transition into nonlinearity, suitable for micro-saturation and stable spectral behavior.
