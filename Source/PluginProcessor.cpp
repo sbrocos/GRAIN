@@ -233,7 +233,7 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     auto* player = filePlayerSource.load();
     if (player != nullptr && player->isPlaying())
     {
-        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, buffer.getNumSamples());
+        const juce::AudioSourceChannelInfo channelInfo(&buffer, 0, buffer.getNumSamples());
         player->getNextAudioBlock(channelInfo);
     }
 
