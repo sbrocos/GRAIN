@@ -11,6 +11,7 @@
 #include "PluginProcessor.h"
 
 #include "PluginEditor.h"
+#include "Standalone/FilePlayerSource.h"
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createParameterLayout()
@@ -227,6 +228,15 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         buffer.clear(i, 0, buffer.getNumSamples());
     }
 
+    // Standalone file player injection (GT-16):
+    // When a file player is connected and playing, replace device input with file audio
+    auto* player = filePlayerSource.load();
+    if (player != nullptr && player->isPlaying())
+    {
+        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, buffer.getNumSamples());
+        player->getNextAudioBlock(channelInfo);
+    }
+
     // Measure input levels for GUI meters (Task 008) — before input gain
     inputLevelL.store(buffer.getMagnitude(0, 0, buffer.getNumSamples()));
     if (buffer.getNumChannels() > 1)
@@ -391,6 +401,20 @@ void GRAINAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
     {
         apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
     }
+}
+
+//==============================================================================
+void GRAINAudioProcessor::setFilePlayerSource(FilePlayerSource* source)
+{
+    filePlayerSource.store(source);
+}
+
+void GRAINAudioProcessor::resetPipelines()
+{
+    pipelineLeft.reset();
+    pipelineRight.reset();
+    rmsDetector.reset();
+    currentEnvelope = 0.0f;
 }
 
 //==============================================================================

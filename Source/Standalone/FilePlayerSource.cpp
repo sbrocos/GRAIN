@@ -2,7 +2,7 @@
   ==============================================================================
 
     FilePlayerSource.cpp
-    GRAIN — Standalone audio file loader implementation (GT-15).
+    GRAIN — Standalone audio file loader and transport implementation (GT-15, GT-16).
 
   ==============================================================================
 */
@@ -14,10 +14,12 @@ FilePlayerSource::FilePlayerSource()
 {
     formatManager.registerBasicFormats();
     backgroundThread.startThread(juce::Thread::Priority::normal);
+    transportSource.addChangeListener(this);
 }
 
 FilePlayerSource::~FilePlayerSource()
 {
+    transportSource.removeChangeListener(this);
     transportSource.setSource(nullptr);
     readerSource.reset();
     currentReader.reset();
@@ -80,6 +82,7 @@ bool FilePlayerSource::loadFile(const juce::File& file)
 
 void FilePlayerSource::unloadFile()
 {
+    transportSource.stop();
     transportSource.setSource(nullptr);
     readerSource.reset();
     currentReader.reset();
@@ -164,4 +167,96 @@ juce::AudioTransportSource* FilePlayerSource::getTransportSource()
     }
 
     return nullptr;
+}
+
+//==============================================================================
+void FilePlayerSource::play()
+{
+    if (!fileLoaded)
+    {
+        return;
+    }
+
+    transportSource.start();
+}
+
+void FilePlayerSource::stop()
+{
+    transportSource.stop();
+}
+
+void FilePlayerSource::setLooping(bool shouldLoop)
+{
+    looping.store(shouldLoop);
+
+    if (readerSource != nullptr)
+    {
+        readerSource->setLooping(shouldLoop);
+    }
+}
+
+bool FilePlayerSource::isLooping() const
+{
+    return looping.load();
+}
+
+bool FilePlayerSource::isPlaying() const
+{
+    return transportSource.isPlaying();
+}
+
+void FilePlayerSource::seekToPosition(double positionSeconds)
+{
+    if (!fileLoaded)
+    {
+        return;
+    }
+
+    const double clampedPosition = juce::jlimit(0.0, getFileDurationSeconds(), positionSeconds);
+    transportSource.setPosition(clampedPosition);
+}
+
+double FilePlayerSource::getCurrentPosition() const
+{
+    return transportSource.getCurrentPosition();
+}
+
+//==============================================================================
+void FilePlayerSource::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
+{
+    if (!fileLoaded)
+    {
+        bufferToFill.clearActiveBufferRegion();
+        return;
+    }
+
+    transportSource.getNextAudioBlock(bufferToFill);
+}
+
+//==============================================================================
+void FilePlayerSource::addListener(Listener* listener)
+{
+    listeners.add(listener);
+}
+
+void FilePlayerSource::removeListener(Listener* listener)
+{
+    listeners.remove(listener);
+}
+
+//==============================================================================
+void FilePlayerSource::changeListenerCallback(juce::ChangeBroadcaster* source)
+{
+    if (source == &transportSource)
+    {
+        const bool playing = transportSource.isPlaying();
+
+        if (!playing && !looping.load())
+        {
+            // Playback stopped naturally (reached end)
+            listeners.call(&Listener::transportReachedEnd);
+        }
+
+        listeners.call(&Listener::transportStateChanged, playing);
+    }
 }

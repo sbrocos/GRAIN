@@ -2,8 +2,9 @@
   ==============================================================================
 
     FilePlayerTest.cpp
-    Unit tests for the standalone FilePlayerSource (GT-15).
-    Tests file loading, validation, metadata, thumbnail, and sample rate handling.
+    Unit tests for the standalone FilePlayerSource (GT-15, GT-16).
+    Tests file loading, validation, metadata, thumbnail, sample rate handling,
+    and transport controls (play/stop/loop/seek).
 
   ==============================================================================
 */
@@ -108,6 +109,7 @@ public:
 
     void runTest() override
     {
+        // GT-15: File loading tests
         runLoadValidWavTest();
         runLoadValidAiffTest();
         runRejectInvalidFileTest();
@@ -116,6 +118,14 @@ public:
         runSampleRateMismatchTest();
         runUnloadFileTest();
         runMetadataAccuracyTest();
+
+        // GT-16: Transport tests
+        runPlayStartsFromPositionZeroTest();
+        runStopPausesAtCurrentPositionTest();
+        runLoopRestartsTest();
+        runSeekSetsPositionTest();
+        runSeekProducesNoNanInfTest();
+        runFileAudioReplacesInputTest();
     }
 
 private:
@@ -282,6 +292,196 @@ private:
         expectWithinAbsoluteError(player.getFileDurationSeconds(), 2.0, 0.001);
         expect(player.getLoadedFile() == tempFile, "Loaded file path mismatch");
 
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    // GT-16: Transport tests
+    //==========================================================================
+    void runPlayStartsFromPositionZeroTest()
+    {
+        beginTest("Transport: play starts from position 0");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 1.0);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        expectWithinAbsoluteError(player.getCurrentPosition(), 0.0, 0.001);
+
+        player.play();
+        expect(player.isPlaying(), "Player should be playing after play()");
+
+        // Position should still be near zero right after starting
+        expectWithinAbsoluteError(player.getCurrentPosition(), 0.0, 0.05);
+
+        player.stop();
+        player.releaseResources();
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    void runStopPausesAtCurrentPositionTest()
+    {
+        beginTest("Transport: stop pauses at current position");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 2.0);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        // Seek to 0.5s, then play and immediately stop
+        player.seekToPosition(0.5);
+        player.play();
+
+        // Process a small amount to advance position
+        juce::AudioBuffer<float> buffer(2, 512);
+        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        player.getNextAudioBlock(channelInfo);
+
+        player.stop();
+        expect(!player.isPlaying(), "Player should not be playing after stop()");
+
+        // Position should be approximately 0.5s + the processed samples
+        double const pos = player.getCurrentPosition();
+        expect(pos >= 0.5, "Position should be at least 0.5s after seeking there");
+
+        player.releaseResources();
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    void runLoopRestartsTest()
+    {
+        beginTest("Transport: loop mode setting");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 0.5);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        // Default should be no looping
+        expect(!player.isLooping(), "Default should be non-looping");
+
+        // Enable looping
+        player.setLooping(true);
+        expect(player.isLooping(), "isLooping should return true after setLooping(true)");
+
+        // Disable looping
+        player.setLooping(false);
+        expect(!player.isLooping(), "isLooping should return false after setLooping(false)");
+
+        player.releaseResources();
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    void runSeekSetsPositionTest()
+    {
+        beginTest("Transport: seek sets position correctly");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 2.0);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        // Seek to 1.0 second
+        player.seekToPosition(1.0);
+        expectWithinAbsoluteError(player.getCurrentPosition(), 1.0, 0.01);
+
+        // Seek to beginning
+        player.seekToPosition(0.0);
+        expectWithinAbsoluteError(player.getCurrentPosition(), 0.0, 0.01);
+
+        // Seek beyond end (should clamp)
+        player.seekToPosition(10.0);
+        expectWithinAbsoluteError(player.getCurrentPosition(), 2.0, 0.01);
+
+        // Seek to negative (should clamp to 0)
+        player.seekToPosition(-1.0);
+        expectWithinAbsoluteError(player.getCurrentPosition(), 0.0, 0.01);
+
+        player.releaseResources();
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    void runSeekProducesNoNanInfTest()
+    {
+        beginTest("Transport: seek produces no NaN/Inf in output");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 1.0);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        player.play();
+
+        // Process a block, then seek, then process another block
+        juce::AudioBuffer<float> buffer(2, 512);
+
+        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        player.getNextAudioBlock(channelInfo);
+
+        // Seek mid-playback
+        player.seekToPosition(0.5);
+
+        // Process after seek — must not produce NaN or Inf
+        buffer.clear();
+        player.getNextAudioBlock(channelInfo);
+
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            auto const* samples = buffer.getReadPointer(ch);
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                expect(!std::isnan(samples[i]), "NaN detected after seek at sample " + juce::String(i));
+                expect(!std::isinf(samples[i]), "Inf detected after seek at sample " + juce::String(i));
+            }
+        }
+
+        player.stop();
+        player.releaseResources();
+        tempFile.deleteFile();
+    }
+
+    //==========================================================================
+    void runFileAudioReplacesInputTest()
+    {
+        beginTest("Transport: file audio replaces device input (not silence)");
+
+        auto tempFile = createTestWavFile(44100.0, 2, 1.0, 440.0f);
+        expect(tempFile.existsAsFile(), "Failed to create test WAV file");
+
+        FilePlayerSource player;
+        player.loadFile(tempFile);
+        player.prepareToPlay(44100.0, 512);
+
+        player.play();
+
+        // Get audio from the player
+        juce::AudioBuffer<float> buffer(2, 512);
+        buffer.clear();
+        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        player.getNextAudioBlock(channelInfo);
+
+        // Output should NOT be silence (we loaded a 440Hz sine)
+        float rms = buffer.getRMSLevel(0, 0, 512);
+        expect(rms > 0.01f, "File audio should not be silent, RMS = " + juce::String(rms));
+
+        player.stop();
+        player.releaseResources();
         tempFile.deleteFile();
     }
 };
