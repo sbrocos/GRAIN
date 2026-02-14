@@ -11,24 +11,12 @@
 
 #pragma once
 
+#include "GrainColours.h"
 #include "PluginProcessor.h"
+#include "Standalone/FilePlayerSource.h"
+#include "Standalone/TransportBar.h"
 
 #include <JuceHeader.h>
-
-//==============================================================================
-// Basic color palette for Phase A
-namespace GrainColours
-{
-const juce::Colour kBackground{0xff1c1917};   // Dark stone
-const juce::Colour kSurface{0xff292524};      // Slightly lighter
-const juce::Colour kText{0xffa8a29e};         // Stone 400
-const juce::Colour kTextBright{0xfff5f5f4};   // Stone 100
-const juce::Colour kAccent{0xffd97706};       // Amber 600
-const juce::Colour kAccentDim{0xff92400e};    // Amber 800
-const juce::Colour kMeterGreen{0xff22c55e};   // Green 500
-const juce::Colour kMeterYellow{0xffeab308};  // Yellow 500
-const juce::Colour kMeterRed{0xffef4444};     // Red 500
-}  // namespace GrainColours
 
 //==============================================================================
 /**
@@ -44,10 +32,14 @@ const juce::Colour kMeterRed{0xffef4444};     // Red 500
 class GRAINAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Timer
+    , private TransportBar::Listener
 {
 public:
     explicit GRAINAudioProcessorEditor(GRAINAudioProcessor& /*p*/);
     ~GRAINAudioProcessorEditor() override;
+
+    /** @return true if running as standalone application. */
+    bool isStandaloneMode() const { return standaloneMode; }
 
     //==============================================================================
     void paint(juce::Graphics& /*g*/) override;
@@ -100,6 +92,21 @@ private:
     float displayOutputL = 0.0f, displayOutputR = 0.0f;
 
     static constexpr float kMeterDecay = 0.85f;
+
+    //==============================================================================
+    // Standalone mode (GT-17)
+    bool standaloneMode = false;
+
+    // Standalone-only components (created only in standalone mode)
+    std::unique_ptr<FilePlayerSource> filePlayer;
+    std::unique_ptr<TransportBar> transportBar;
+
+    // TransportBar::Listener callbacks
+    void openFileRequested() override;
+    void exportRequested() override;
+
+    // File chooser (must persist during async dialog)
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessorEditor)

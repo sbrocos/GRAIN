@@ -16,6 +16,8 @@
             resource="0" file="Source/Tests/CalibrationTest.cpp"/>
       <FILE id="FilePlayerTestCpp" name="FilePlayerTest.cpp" compile="1"
             resource="0" file="Source/Tests/FilePlayerTest.cpp"/>
+      <FILE id="TransportBarTestCpp" name="TransportBarTest.cpp" compile="1"
+            resource="0" file="Source/Tests/TransportBarTest.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
       <FILE id="tCalibrationConfigH" name="CalibrationConfig.h" compile="0"
@@ -42,6 +44,12 @@
             resource="0" file="Source/Standalone/FilePlayerSource.h"/>
       <FILE id="tFilePlayerSourceCpp" name="FilePlayerSource.cpp" compile="1"
             resource="0" file="Source/Standalone/FilePlayerSource.cpp"/>
+      <FILE id="tTransportBarH" name="TransportBar.h" compile="0"
+            resource="0" file="Source/Standalone/TransportBar.h"/>
+      <FILE id="tTransportBarCpp" name="TransportBar.cpp" compile="1"
+            resource="0" file="Source/Standalone/TransportBar.cpp"/>
+      <FILE id="tGrainColoursH" name="GrainColours.h" compile="0"
+            resource="0" file="Source/GrainColours.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

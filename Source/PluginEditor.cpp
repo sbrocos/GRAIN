@@ -18,7 +18,8 @@ constexpr int kEditorWidth = 500;
 constexpr int kEditorHeight = 350;
 constexpr int kHeaderHeight = 50;
 constexpr int kFooterHeight = 100;
-constexpr int kMeterColumnWidth = 60;  // meter + padding
+constexpr int kMeterColumnWidth = 60;    // meter + padding
+constexpr int kTransportBarHeight = 50;  // standalone transport bar
 }  // namespace
 
 //==============================================================================
@@ -44,9 +45,14 @@ void GRAINAudioProcessorEditor::setupLabel(juce::Label& label)
 }
 
 //==============================================================================
-GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : AudioProcessorEditor(&p), processor(p)
+GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
+    : AudioProcessorEditor(&p)
+    , processor(p)
+    , standaloneMode(juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
 {
-    setSize(kEditorWidth, kEditorHeight);
+
+    const int editorHeight = standaloneMode ? (kEditorHeight + kTransportBarHeight) : kEditorHeight;
+    setSize(kEditorWidth, editorHeight);
 
     auto& apvts = processor.getAPVTS();
 
@@ -95,6 +101,18 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
     bypassAttachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
 
+    // === Standalone: file player + transport bar (GT-17) ===
+    if (standaloneMode)
+    {
+        filePlayer = std::make_unique<FilePlayerSource>();
+        transportBar = std::make_unique<TransportBar>(*filePlayer);
+        transportBar->addListener(this);
+        addAndMakeVisible(transportBar.get());
+
+        // Connect file player to processor for audio injection
+        processor.setFilePlayerSource(filePlayer.get());
+    }
+
     // Start meter timer (30 FPS)
     startTimerHz(30);
 }
@@ -102,6 +120,17 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
 GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
 {
     stopTimer();
+
+    if (standaloneMode)
+    {
+        // Disconnect file player from processor before destruction
+        processor.setFilePlayerSource(nullptr);
+
+        if (transportBar != nullptr)
+        {
+            transportBar->removeListener(this);
+        }
+    }
 }
 
 //==============================================================================
@@ -123,6 +152,10 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     // Meters
     auto bounds = getLocalBounds();
     bounds.removeFromTop(kHeaderHeight);
+    if (standaloneMode)
+    {
+        bounds.removeFromBottom(kTransportBarHeight);
+    }
     bounds.removeFromBottom(kFooterHeight);
 
     const auto inputMeterArea = bounds.removeFromLeft(kMeterColumnWidth).toFloat().reduced(10, 20);
@@ -133,7 +166,12 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
 
     // Footer separator
     g.setColour(GrainColours::kSurface);
-    g.fillRect(getLocalBounds().removeFromBottom(kFooterHeight));
+    auto footerBounds = getLocalBounds();
+    if (standaloneMode)
+    {
+        footerBounds.removeFromBottom(kTransportBarHeight);
+    }
+    g.fillRect(footerBounds.removeFromBottom(kFooterHeight));
 }
 
 void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> area, float levelL, float levelR,
@@ -194,6 +232,12 @@ void GRAINAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
 
+    // Standalone: transport bar at the bottom
+    if (standaloneMode && transportBar != nullptr)
+    {
+        transportBar->setBounds(bounds.removeFromBottom(kTransportBarHeight));
+    }
+
     // Header
     auto headerArea = bounds.removeFromTop(kHeaderHeight);
     bypassButton.setBounds(headerArea.removeFromRight(80).reduced(10));
@@ -235,6 +279,39 @@ void GRAINAudioProcessorEditor::resized()
     auto warmthArea = mainArea;
     warmthLabel.setBounds(warmthArea.removeFromTop(25));
     warmthSlider.setBounds(warmthArea);
+}
+
+//==============================================================================
+//==============================================================================
+// Standalone transport bar callbacks (GT-17)
+void GRAINAudioProcessorEditor::openFileRequested()
+{
+    if (filePlayer == nullptr)
+    {
+        return;
+    }
+
+    fileChooser = std::make_unique<juce::FileChooser>("Open Audio File", juce::File(), "*.wav;*.aiff;*.aif");
+
+    auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+
+    fileChooser->launchAsync(chooserFlags,
+                             [this](const juce::FileChooser& fc)
+                             {
+                                 auto result = fc.getResult();
+
+                                 if (result.existsAsFile())
+                                 {
+                                     filePlayer->loadFile(result);
+                                     filePlayer->prepareToPlay(processor.getSampleRate(), processor.getBlockSize());
+                                     transportBar->updateButtonStates();
+                                 }
+                             });
+}
+
+void GRAINAudioProcessorEditor::exportRequested()
+{
+    // Export functionality will be implemented in subtask 6 (GT-20)
 }
 
 //==============================================================================
