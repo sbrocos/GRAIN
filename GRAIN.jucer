@@ -31,7 +31,13 @@
               resource="0" file="Source/Standalone/FilePlayerSource.h"/>
         <FILE id="FilePlayerSourceCpp" name="FilePlayerSource.cpp" compile="1"
               resource="0" file="Source/Standalone/FilePlayerSource.cpp"/>
+        <FILE id="TransportBarH" name="TransportBar.h" compile="0"
+              resource="0" file="Source/Standalone/TransportBar.h"/>
+        <FILE id="TransportBarCpp" name="TransportBar.cpp" compile="1"
+              resource="0" file="Source/Standalone/TransportBar.cpp"/>
       </GROUP>
+      <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
+            resource="0" file="Source/GrainColours.h"/>
       <FILE id="bG1kmQ" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="VgFP9X" name="PluginProcessor.h" compile="0" resource="0"
