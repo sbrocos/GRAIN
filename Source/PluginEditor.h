@@ -56,7 +56,8 @@ public:
 private:
     //==============================================================================
     void timerCallback() override;
-    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR, const juce::String& label);
+    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR,
+                          const juce::String& label);
 
     // Setup helpers (reduce constructor boilerplate)
     void setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight, const juce::String& suffix = {});

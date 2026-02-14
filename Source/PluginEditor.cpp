@@ -52,16 +52,19 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
 
     // === Main controls (creative — large knobs) ===
     setupRotarySlider(grainSlider, 60, 20);
-    grainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "drive", grainSlider);
+    grainAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "drive", grainSlider);
     setupLabel(grainLabel);
 
     setupRotarySlider(warmthSlider, 60, 20);
-    warmthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "warmth", warmthSlider);
+    warmthAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "warmth", warmthSlider);
     setupLabel(warmthLabel);
 
     // === Secondary controls (utility — small knobs) ===
     setupRotarySlider(inputSlider, 50, 18, " dB");
-    inputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "inputGain", inputSlider);
+    inputAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "inputGain", inputSlider);
     setupLabel(inputLabel);
 
     setupRotarySlider(mixSlider, 50, 18);
@@ -73,11 +76,13 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
     focusSelector.addItem("MID", 2);
     focusSelector.addItem("HIGH", 3);
     addAndMakeVisible(focusSelector);
-    focusAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, "focus", focusSelector);
+    focusAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, "focus", focusSelector);
     setupLabel(focusLabel);
 
     setupRotarySlider(outputSlider, 50, 18, " dB");
-    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "output", outputSlider);
+    outputAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "output", outputSlider);
     setupLabel(outputLabel);
 
     // === Bypass ===
@@ -87,7 +92,8 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p) : A
     bypassButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
     bypassButton.setColour(juce::TextButton::textColourOnId, GrainColours::kTextBright);
     addAndMakeVisible(bypassButton);
-    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
+    bypassAttachment =
+        std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
 
     // Start meter timer (30 FPS)
     startTimerHz(30);
