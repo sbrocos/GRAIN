@@ -13,6 +13,7 @@
 
 #include "GrainColours.h"
 #include "PluginProcessor.h"
+#include "Standalone/AudioFileUtils.h"
 #include "Standalone/FilePlayerSource.h"
 #include "Standalone/TransportBar.h"
 #include "Standalone/WaveformDisplay.h"
@@ -32,6 +33,7 @@
  */
 class GRAINAudioProcessorEditor
     : public juce::AudioProcessorEditor
+    , public juce::FileDragAndDropTarget
     , private juce::Timer
     , private TransportBar::Listener
 {
@@ -45,6 +47,13 @@ public:
     //==============================================================================
     void paint(juce::Graphics& /*g*/) override;
     void resized() override;
+
+    //==============================================================================
+    // FileDragAndDropTarget (GT-19)
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void fileDragEnter(const juce::StringArray& files, int x, int y) override;
+    void fileDragExit(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
 
 private:
     //==============================================================================
@@ -109,6 +118,14 @@ private:
 
     // File chooser (must persist during async dialog)
     std::unique_ptr<juce::FileChooser> fileChooser;
+
+    //==============================================================================
+    // Drag & drop state (GT-19)
+    bool dragHovering = false;
+    bool dragAccepted = false;
+
+    /** Load a file into the player and update all standalone components. */
+    void loadFileIntoPlayer(const juce::File& file);
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessorEditor)

@@ -340,7 +340,7 @@ private:
 
         // Process a small amount to advance position
         juce::AudioBuffer<float> buffer(2, 512);
-        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        juce::AudioSourceChannelInfo const channelInfo(&buffer, 0, 512);
         player.getNextAudioBlock(channelInfo);
 
         player.stop();
@@ -430,7 +430,7 @@ private:
         // Process a block, then seek, then process another block
         juce::AudioBuffer<float> buffer(2, 512);
 
-        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        juce::AudioSourceChannelInfo const channelInfo(&buffer, 0, 512);
         player.getNextAudioBlock(channelInfo);
 
         // Seek mid-playback
@@ -473,11 +473,11 @@ private:
         // Get audio from the player
         juce::AudioBuffer<float> buffer(2, 512);
         buffer.clear();
-        juce::AudioSourceChannelInfo channelInfo(&buffer, 0, 512);
+        juce::AudioSourceChannelInfo const channelInfo(&buffer, 0, 512);
         player.getNextAudioBlock(channelInfo);
 
         // Output should NOT be silence (we loaded a 440Hz sine)
-        float rms = buffer.getRMSLevel(0, 0, 512);
+        float const rms = buffer.getRMSLevel(0, 0, 512);
         expect(rms > 0.01f, "File audio should not be silent, RMS = " + juce::String(rms));
 
         player.stop();
