@@ -25,6 +25,7 @@
 // Forward declarations — standalone only
 class FilePlayerSource;
 class WaveformDisplay;
+class AudioRecorder;
 
 //==============================================================================
 /**
@@ -105,6 +106,14 @@ public:
      *  Pass nullptr to disconnect. Called from the message thread. */
     void setWaveformDisplay(WaveformDisplay* display);
 
+    //==============================================================================
+    // Standalone recorder injection (GT-20)
+
+    /** Set the audio recorder for export.
+     *  When set and recording, processBlock pushes processed output samples.
+     *  Pass nullptr to disconnect. Called from the message thread. */
+    void setAudioRecorder(AudioRecorder* recorder);
+
 private:
     //==============================================================================
     // Parameter state (private — access via getAPVTS())
@@ -167,6 +176,9 @@ private:
 
     // Standalone waveform display injection (GT-18)
     std::atomic<WaveformDisplay*> waveformDisplay{nullptr};
+
+    // Standalone recorder injection (GT-20)
+    std::atomic<AudioRecorder*> audioRecorder{nullptr};
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)

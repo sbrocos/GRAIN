@@ -102,10 +102,11 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     bypassAttachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
 
-    // === Standalone: file player + waveform + transport bar (GT-17, GT-18) ===
+    // === Standalone: file player + waveform + transport bar + recorder (GT-17–GT-20) ===
     if (standaloneMode)
     {
         filePlayer = std::make_unique<FilePlayerSource>();
+        filePlayer->addListener(this);
 
         waveformDisplay = std::make_unique<WaveformDisplay>(*filePlayer);
         addAndMakeVisible(waveformDisplay.get());
@@ -114,9 +115,12 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
         transportBar->addListener(this);
         addAndMakeVisible(transportBar.get());
 
-        // Connect file player and waveform display to processor
+        recorder = std::make_unique<AudioRecorder>();
+
+        // Connect file player, waveform display, and recorder to processor
         processor.setFilePlayerSource(filePlayer.get());
         processor.setWaveformDisplay(waveformDisplay.get());
+        processor.setAudioRecorder(recorder.get());
     }
 
     // Start meter timer (30 FPS)
@@ -130,8 +134,14 @@ GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
     if (standaloneMode)
     {
         // Disconnect from processor before destruction
+        processor.setAudioRecorder(nullptr);
         processor.setWaveformDisplay(nullptr);
         processor.setFilePlayerSource(nullptr);
+
+        if (filePlayer != nullptr)
+        {
+            filePlayer->removeListener(this);
+        }
 
         if (transportBar != nullptr)
         {
@@ -332,7 +342,92 @@ void GRAINAudioProcessorEditor::openFileRequested()
 
 void GRAINAudioProcessorEditor::exportRequested()
 {
-    // Export functionality will be implemented in subtask 6 (GT-20)
+    if (filePlayer == nullptr || !filePlayer->isFileLoaded() || recorder == nullptr)
+    {
+        return;
+    }
+
+    // Build a default filename from the loaded file
+    auto loadedFile = filePlayer->getLoadedFile();
+    auto defaultName = loadedFile.getFileNameWithoutExtension() + "_processed.wav";
+    auto defaultDir = loadedFile.getParentDirectory();
+
+    fileChooser =
+        std::make_unique<juce::FileChooser>("Export Processed Audio", defaultDir.getChildFile(defaultName), "*.wav");
+
+    auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+                        juce::FileBrowserComponent::warnAboutOverwriting;
+
+    fileChooser->launchAsync(chooserFlags,
+                             [this](const juce::FileChooser& fc)
+                             {
+                                 auto result = fc.getResult();
+
+                                 if (result == juce::File())
+                                 {
+                                     return;  // User cancelled
+                                 }
+
+                                 // Ensure .wav extension
+                                 auto outputFile = result;
+                                 if (outputFile.getFileExtension().toLowerCase() != ".wav")
+                                 {
+                                     outputFile = outputFile.withFileExtension(".wav");
+                                 }
+
+                                 // Start recording
+                                 auto const sampleRate = filePlayer->getFileSampleRate();
+                                 auto const numChannels = filePlayer->getFileNumChannels();
+
+                                 if (!recorder->startRecording(outputFile, sampleRate, numChannels))
+                                 {
+                                     return;  // Failed to create output file
+                                 }
+
+                                 exporting = true;
+
+                                 // Rewind and play the full file
+                                 filePlayer->seekToPosition(0.0);
+                                 processor.resetPipelines();
+
+                                 if (waveformDisplay != nullptr)
+                                 {
+                                     waveformDisplay->clearWetBuffer();
+                                 }
+
+                                 filePlayer->play();
+
+                                 if (transportBar != nullptr)
+                                 {
+                                     transportBar->updateButtonStates();
+                                 }
+                             });
+}
+
+//==============================================================================
+// FilePlayerSource::Listener callbacks (GT-20 export workflow)
+
+void GRAINAudioProcessorEditor::transportStateChanged(bool /*isNowPlaying*/)
+{
+    if (transportBar != nullptr)
+    {
+        transportBar->updateButtonStates();
+    }
+}
+
+void GRAINAudioProcessorEditor::transportReachedEnd()
+{
+    if (exporting && recorder != nullptr)
+    {
+        // Export complete — stop recording and finalize file
+        recorder->stopRecording();
+        exporting = false;
+
+        if (transportBar != nullptr)
+        {
+            transportBar->updateButtonStates();
+        }
+    }
 }
 
 //==============================================================================
