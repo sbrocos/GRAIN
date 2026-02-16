@@ -41,6 +41,10 @@
               resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
         <FILE id="AudioFileUtilsH" name="AudioFileUtils.h" compile="0"
               resource="0" file="Source/Standalone/AudioFileUtils.h"/>
+        <FILE id="AudioRecorderH" name="AudioRecorder.h" compile="0"
+              resource="0" file="Source/Standalone/AudioRecorder.h"/>
+        <FILE id="AudioRecorderCpp" name="AudioRecorder.cpp" compile="1"
+              resource="0" file="Source/Standalone/AudioRecorder.cpp"/>
       </GROUP>
       <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>

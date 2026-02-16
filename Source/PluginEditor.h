@@ -14,6 +14,7 @@
 #include "GrainColours.h"
 #include "PluginProcessor.h"
 #include "Standalone/AudioFileUtils.h"
+#include "Standalone/AudioRecorder.h"
 #include "Standalone/FilePlayerSource.h"
 #include "Standalone/TransportBar.h"
 #include "Standalone/WaveformDisplay.h"
@@ -34,6 +35,7 @@
 class GRAINAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , public juce::FileDragAndDropTarget
+    , public FilePlayerSource::Listener
     , private juce::Timer
     , private TransportBar::Listener
 {
@@ -111,10 +113,18 @@ private:
     std::unique_ptr<FilePlayerSource> filePlayer;
     std::unique_ptr<TransportBar> transportBar;
     std::unique_ptr<WaveformDisplay> waveformDisplay;
+    std::unique_ptr<AudioRecorder> recorder;
 
     // TransportBar::Listener callbacks
     void openFileRequested() override;
     void exportRequested() override;
+
+    // FilePlayerSource::Listener callbacks (for export workflow)
+    void transportStateChanged(bool isNowPlaying) override;
+    void transportReachedEnd() override;
+
+    // Export state
+    bool exporting = false;
 
     // File chooser (must persist during async dialog)
     std::unique_ptr<juce::FileChooser> fileChooser;

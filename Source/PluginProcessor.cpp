@@ -11,6 +11,7 @@
 #include "PluginProcessor.h"
 
 #include "PluginEditor.h"
+#include "Standalone/AudioRecorder.h"
 #include "Standalone/FilePlayerSource.h"
 #include "Standalone/WaveformDisplay.h"
 
@@ -286,6 +287,13 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         // Push mono-summed output for waveform visualization
         wfDisplay->pushWetSamples(buffer.getReadPointer(0), buffer.getNumSamples());
     }
+
+    // Push processed output to recorder (GT-20)
+    auto* recorder = audioRecorder.load();
+    if (recorder != nullptr && recorder->isRecording())
+    {
+        recorder->pushSamples(buffer, buffer.getNumSamples());
+    }
 }
 
 //==============================================================================
@@ -429,6 +437,11 @@ void GRAINAudioProcessor::resetPipelines()
 void GRAINAudioProcessor::setWaveformDisplay(WaveformDisplay* display)
 {
     waveformDisplay.store(display);
+}
+
+void GRAINAudioProcessor::setAudioRecorder(AudioRecorder* recorder)
+{
+    audioRecorder.store(recorder);
 }
 
 //==============================================================================
