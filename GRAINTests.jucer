@@ -18,6 +18,8 @@
             resource="0" file="Source/Tests/FilePlayerTest.cpp"/>
       <FILE id="TransportBarTestCpp" name="TransportBarTest.cpp" compile="1"
             resource="0" file="Source/Tests/TransportBarTest.cpp"/>
+      <FILE id="WaveformTestCpp" name="WaveformTest.cpp" compile="1"
+            resource="0" file="Source/Tests/WaveformTest.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
       <FILE id="tCalibrationConfigH" name="CalibrationConfig.h" compile="0"
@@ -48,6 +50,10 @@
             resource="0" file="Source/Standalone/TransportBar.h"/>
       <FILE id="tTransportBarCpp" name="TransportBar.cpp" compile="1"
             resource="0" file="Source/Standalone/TransportBar.cpp"/>
+      <FILE id="tWaveformDisplayH" name="WaveformDisplay.h" compile="0"
+            resource="0" file="Source/Standalone/WaveformDisplay.h"/>
+      <FILE id="tWaveformDisplayCpp" name="WaveformDisplay.cpp" compile="1"
+            resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
       <FILE id="tGrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
     </GROUP>

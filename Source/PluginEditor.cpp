@@ -20,6 +20,7 @@ constexpr int kHeaderHeight = 50;
 constexpr int kFooterHeight = 100;
 constexpr int kMeterColumnWidth = 60;    // meter + padding
 constexpr int kTransportBarHeight = 50;  // standalone transport bar
+constexpr int kWaveformHeight = 120;     // standalone waveform display
 }  // namespace
 
 //==============================================================================
@@ -51,7 +52,7 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     , standaloneMode(juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
 {
 
-    const int editorHeight = standaloneMode ? (kEditorHeight + kTransportBarHeight) : kEditorHeight;
+    const int editorHeight = standaloneMode ? (kEditorHeight + kWaveformHeight + kTransportBarHeight) : kEditorHeight;
     setSize(kEditorWidth, editorHeight);
 
     auto& apvts = processor.getAPVTS();
@@ -101,16 +102,21 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     bypassAttachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
 
-    // === Standalone: file player + transport bar (GT-17) ===
+    // === Standalone: file player + waveform + transport bar (GT-17, GT-18) ===
     if (standaloneMode)
     {
         filePlayer = std::make_unique<FilePlayerSource>();
+
+        waveformDisplay = std::make_unique<WaveformDisplay>(*filePlayer);
+        addAndMakeVisible(waveformDisplay.get());
+
         transportBar = std::make_unique<TransportBar>(*filePlayer);
         transportBar->addListener(this);
         addAndMakeVisible(transportBar.get());
 
-        // Connect file player to processor for audio injection
+        // Connect file player and waveform display to processor
         processor.setFilePlayerSource(filePlayer.get());
+        processor.setWaveformDisplay(waveformDisplay.get());
     }
 
     // Start meter timer (30 FPS)
@@ -123,7 +129,8 @@ GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
 
     if (standaloneMode)
     {
-        // Disconnect file player from processor before destruction
+        // Disconnect from processor before destruction
+        processor.setWaveformDisplay(nullptr);
         processor.setFilePlayerSource(nullptr);
 
         if (transportBar != nullptr)
@@ -154,7 +161,7 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     bounds.removeFromTop(kHeaderHeight);
     if (standaloneMode)
     {
-        bounds.removeFromBottom(kTransportBarHeight);
+        bounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
     }
     bounds.removeFromBottom(kFooterHeight);
 
@@ -169,7 +176,7 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     auto footerBounds = getLocalBounds();
     if (standaloneMode)
     {
-        footerBounds.removeFromBottom(kTransportBarHeight);
+        footerBounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
     }
     g.fillRect(footerBounds.removeFromBottom(kFooterHeight));
 }
@@ -232,10 +239,17 @@ void GRAINAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds();
 
-    // Standalone: transport bar at the bottom
-    if (standaloneMode && transportBar != nullptr)
+    // Standalone: transport bar + waveform at the bottom
+    if (standaloneMode)
     {
-        transportBar->setBounds(bounds.removeFromBottom(kTransportBarHeight));
+        if (transportBar != nullptr)
+        {
+            transportBar->setBounds(bounds.removeFromBottom(kTransportBarHeight));
+        }
+        if (waveformDisplay != nullptr)
+        {
+            waveformDisplay->setBounds(bounds.removeFromBottom(kWaveformHeight));
+        }
     }
 
     // Header
@@ -305,6 +319,11 @@ void GRAINAudioProcessorEditor::openFileRequested()
                                      filePlayer->loadFile(result);
                                      filePlayer->prepareToPlay(processor.getSampleRate(), processor.getBlockSize());
                                      transportBar->updateButtonStates();
+
+                                     if (waveformDisplay != nullptr)
+                                     {
+                                         waveformDisplay->clearWetBuffer();
+                                     }
                                  }
                              });
 }

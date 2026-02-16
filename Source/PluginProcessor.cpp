@@ -12,6 +12,7 @@
 
 #include "PluginEditor.h"
 #include "Standalone/FilePlayerSource.h"
+#include "Standalone/WaveformDisplay.h"
 
 //==============================================================================
 juce::AudioProcessorValueTreeState::ParameterLayout GRAINAudioProcessor::createParameterLayout()
@@ -277,6 +278,14 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     {
         outputLevelR.store(buffer.getMagnitude(1, 0, buffer.getNumSamples()));
     }
+
+    // Push processed output to waveform display (GT-18)
+    auto* wfDisplay = waveformDisplay.load();
+    if (wfDisplay != nullptr && player != nullptr && player->isPlaying())
+    {
+        // Push mono-summed output for waveform visualization
+        wfDisplay->pushWetSamples(buffer.getReadPointer(0), buffer.getNumSamples());
+    }
 }
 
 //==============================================================================
@@ -415,6 +424,11 @@ void GRAINAudioProcessor::resetPipelines()
     pipelineRight.reset();
     rmsDetector.reset();
     currentEnvelope = 0.0f;
+}
+
+void GRAINAudioProcessor::setWaveformDisplay(WaveformDisplay* display)
+{
+    waveformDisplay.store(display);
 }
 
 //==============================================================================
