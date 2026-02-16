@@ -179,6 +179,15 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
         footerBounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
     }
     g.fillRect(footerBounds.removeFromBottom(kFooterHeight));
+
+    // Drag & drop hover overlay (GT-19)
+    if (dragHovering)
+    {
+        constexpr float kBorderWidth = 3.0f;
+        auto borderBounds = getLocalBounds().toFloat().reduced(kBorderWidth * 0.5f);
+        g.setColour(dragAccepted ? GrainColours::kAccent : GrainColours::kMeterRed);
+        g.drawRoundedRectangle(borderBounds, 4.0f, kBorderWidth);
+    }
 }
 
 void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> area, float levelL, float levelR,
@@ -316,14 +325,7 @@ void GRAINAudioProcessorEditor::openFileRequested()
 
                                  if (result.existsAsFile())
                                  {
-                                     filePlayer->loadFile(result);
-                                     filePlayer->prepareToPlay(processor.getSampleRate(), processor.getBlockSize());
-                                     transportBar->updateButtonStates();
-
-                                     if (waveformDisplay != nullptr)
-                                     {
-                                         waveformDisplay->clearWetBuffer();
-                                     }
+                                     loadFileIntoPlayer(result);
                                  }
                              });
 }
@@ -331,6 +333,84 @@ void GRAINAudioProcessorEditor::openFileRequested()
 void GRAINAudioProcessorEditor::exportRequested()
 {
     // Export functionality will be implemented in subtask 6 (GT-20)
+}
+
+//==============================================================================
+// Drag & drop (GT-19)
+
+bool GRAINAudioProcessorEditor::isInterestedInFileDrag(const juce::StringArray& files)
+{
+    if (!standaloneMode)
+    {
+        return false;
+    }
+
+    // Accept if at least one file has a supported extension
+    return std::any_of(files.begin(), files.end(),
+                       [](const juce::String& f) { return AudioFileUtils::isSupportedAudioFile(f); });
+}
+
+void GRAINAudioProcessorEditor::fileDragEnter(const juce::StringArray& files, int /*x*/, int /*y*/)
+{
+    dragHovering = true;
+    dragAccepted = std::any_of(files.begin(), files.end(),
+                               [](const juce::String& f) { return AudioFileUtils::isSupportedAudioFile(f); });
+    repaint();
+}
+
+void GRAINAudioProcessorEditor::fileDragExit(const juce::StringArray& /*files*/)
+{
+    dragHovering = false;
+    dragAccepted = false;
+    repaint();
+}
+
+void GRAINAudioProcessorEditor::filesDropped(const juce::StringArray& files, int /*x*/, int /*y*/)
+{
+    dragHovering = false;
+    dragAccepted = false;
+    repaint();
+
+    if (!standaloneMode || filePlayer == nullptr)
+    {
+        return;
+    }
+
+    // Find the first supported audio file
+    for (const auto& filePath : files)
+    {
+        if (AudioFileUtils::isSupportedAudioFile(filePath))
+        {
+            juce::File audioFile(filePath);
+
+            if (audioFile.existsAsFile())
+            {
+                loadFileIntoPlayer(audioFile);
+                return;
+            }
+        }
+    }
+}
+
+void GRAINAudioProcessorEditor::loadFileIntoPlayer(const juce::File& file)
+{
+    if (filePlayer == nullptr)
+    {
+        return;
+    }
+
+    filePlayer->loadFile(file);
+    filePlayer->prepareToPlay(processor.getSampleRate(), processor.getBlockSize());
+
+    if (transportBar != nullptr)
+    {
+        transportBar->updateButtonStates();
+    }
+
+    if (waveformDisplay != nullptr)
+    {
+        waveformDisplay->clearWetBuffer();
+    }
 }
 
 //==============================================================================

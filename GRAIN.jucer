@@ -39,6 +39,8 @@
               resource="0" file="Source/Standalone/WaveformDisplay.h"/>
         <FILE id="WaveformDisplayCpp" name="WaveformDisplay.cpp" compile="1"
               resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
+        <FILE id="AudioFileUtilsH" name="AudioFileUtils.h" compile="0"
+              resource="0" file="Source/Standalone/AudioFileUtils.h"/>
       </GROUP>
       <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
