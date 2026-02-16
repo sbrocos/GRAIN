@@ -381,9 +381,8 @@ void GRAINAudioProcessorEditor::filesDropped(const juce::StringArray& files, int
     {
         if (AudioFileUtils::isSupportedAudioFile(filePath))
         {
-            juce::File audioFile(filePath);
 
-            if (audioFile.existsAsFile())
+            if (const juce::File audioFile(filePath); audioFile.existsAsFile())
             {
                 loadFileIntoPlayer(audioFile);
                 return;

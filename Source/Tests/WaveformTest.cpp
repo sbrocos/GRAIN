@@ -88,7 +88,7 @@ private:
         display.setSize(400, 120);
 
         // Create a graphics context and paint — should not crash
-        juce::Image image(juce::Image::ARGB, 400, 120, true);
+        juce::Image const image(juce::Image::ARGB, 400, 120, true);
         juce::Graphics g(image);
         display.paint(g);
 
@@ -116,7 +116,7 @@ private:
         juce::Thread::sleep(100);
 
         // Paint — should not crash
-        juce::Image image(juce::Image::ARGB, 400, 120, true);
+        juce::Image const image(juce::Image::ARGB, 400, 120, true);
         juce::Graphics g(image);
         display.paint(g);
 
