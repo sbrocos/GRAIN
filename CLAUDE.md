@@ -238,7 +238,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- 83 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI)
+- 87 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI + 4 waveform display)
 - VST3 + Standalone build clean
 - pluginval SUCCESS
 - Internal oversampling: 2× real-time, 4× offline bounce

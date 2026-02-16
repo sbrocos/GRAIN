@@ -15,6 +15,7 @@
 #include "PluginProcessor.h"
 #include "Standalone/FilePlayerSource.h"
 #include "Standalone/TransportBar.h"
+#include "Standalone/WaveformDisplay.h"
 
 #include <JuceHeader.h>
 
@@ -100,6 +101,7 @@ private:
     // Standalone-only components (created only in standalone mode)
     std::unique_ptr<FilePlayerSource> filePlayer;
     std::unique_ptr<TransportBar> transportBar;
+    std::unique_ptr<WaveformDisplay> waveformDisplay;
 
     // TransportBar::Listener callbacks
     void openFileRequested() override;

@@ -22,8 +22,9 @@
 
 #include <JuceHeader.h>
 
-// Forward declaration — standalone only
+// Forward declarations — standalone only
 class FilePlayerSource;
+class WaveformDisplay;
 
 //==============================================================================
 /**
@@ -96,6 +97,14 @@ public:
      *  Safe to call from the message thread. */
     void resetPipelines();
 
+    //==============================================================================
+    // Standalone waveform display injection (GT-18)
+
+    /** Set the waveform display for real-time wet output visualization.
+     *  When set, processBlock pushes processed output samples.
+     *  Pass nullptr to disconnect. Called from the message thread. */
+    void setWaveformDisplay(WaveformDisplay* display);
+
 private:
     //==============================================================================
     // Parameter state (private — access via getAPVTS())
@@ -155,6 +164,9 @@ private:
 
     // Standalone file player injection (GT-16)
     std::atomic<FilePlayerSource*> filePlayerSource{nullptr};
+
+    // Standalone waveform display injection (GT-18)
+    std::atomic<WaveformDisplay*> waveformDisplay{nullptr};
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)
