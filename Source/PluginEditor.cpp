@@ -49,11 +49,8 @@ void GRAINAudioProcessorEditor::setupLabel(juce::Label& label)
 GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     : AudioProcessorEditor(&p)
     , processor(p)
-    , standaloneMode(juce::PluginHostType::getPluginLoadedAs() == juce::AudioProcessor::wrapperType_Standalone)
+    , standaloneMode(p.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
 {
-
-    const int editorHeight = standaloneMode ? (kEditorHeight + kWaveformHeight + kTransportBarHeight) : kEditorHeight;
-    setSize(kEditorWidth, editorHeight);
 
     auto& apvts = processor.getAPVTS();
 
@@ -122,6 +119,10 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
         processor.setWaveformDisplay(waveformDisplay.get());
         processor.setAudioRecorder(recorder.get());
     }
+
+    // Set editor size AFTER all components are created, so resized() can lay them out.
+    const int editorHeight = standaloneMode ? (kEditorHeight + kWaveformHeight + kTransportBarHeight) : kEditorHeight;
+    setSize(kEditorWidth, editorHeight);
 
     // Start meter timer (30 FPS)
     startTimerHz(30);
