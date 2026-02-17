@@ -1,6 +1,4 @@
-# Task 010: Final Validation + Release
-
-> **Nota:** Esta numeración es temporal. Se renumerará después de insertar la task de Custom UI (Phase B) que se definirá en otro chat.
+# Task 011: Final Validation + Release
 
 ## Objective
 

@@ -273,6 +273,9 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | `tasks/006c_spectral_focus_reimpl.md` | Spectral focus mono module reimplementation | Done |
 | `tasks/007_oversampling.md` | Internal oversampling (2×/4×) | Done |
 | `tasks/008_plugin_editor.md` | Plugin editor Phase A + inputGain parameter | Done |
+| `tasks/009b_standalone_file_player.md` | Standalone file player, waveform, recorder | Done |
+| `tasks/010_custom_ui.md` | Custom UI (Phase B) — visual polish (5 subtasks) | Pending |
+| `tasks/011_final_validation.md` | Final validation + release package | Pending |
 
 ## Documentation
 
