@@ -22,6 +22,11 @@
 
 #include <JuceHeader.h>
 
+// Forward declarations — standalone only
+class FilePlayerSource;
+class WaveformDisplay;
+class AudioRecorder;
+
 //==============================================================================
 /**
  * Main audio processor for the GRAIN plugin.
@@ -81,6 +86,34 @@ public:
     std::atomic<float> outputLevelL{0.0f};
     std::atomic<float> outputLevelR{0.0f};
 
+    //==============================================================================
+    // Standalone file player injection (GT-16)
+
+    /** Set the file player source for standalone mode.
+     *  When set and playing, file audio replaces device input.
+     *  Pass nullptr to disconnect. Called from the message thread. */
+    void setFilePlayerSource(FilePlayerSource* source);
+
+    /** Reset all DSP pipeline state (e.g., after seek to avoid filter artifacts).
+     *  Safe to call from the message thread. */
+    void resetPipelines();
+
+    //==============================================================================
+    // Standalone waveform display injection (GT-18)
+
+    /** Set the waveform display for real-time wet output visualization.
+     *  When set, processBlock pushes processed output samples.
+     *  Pass nullptr to disconnect. Called from the message thread. */
+    void setWaveformDisplay(WaveformDisplay* display);
+
+    //==============================================================================
+    // Standalone recorder injection (GT-20)
+
+    /** Set the audio recorder for export.
+     *  When set and recording, processBlock pushes processed output samples.
+     *  Pass nullptr to disconnect. Called from the message thread. */
+    void setAudioRecorder(AudioRecorder* recorder);
+
 private:
     //==============================================================================
     // Parameter state (private — access via getAPVTS())
@@ -137,6 +170,15 @@ private:
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     int currentOversamplingOrder = 1;    // 2^1 = 2× real-time, 2^2 = 4× offline
     juce::AudioBuffer<float> dryBuffer;  // Pre-allocated dry signal copy
+
+    // Standalone file player injection (GT-16)
+    std::atomic<FilePlayerSource*> filePlayerSource{nullptr};
+
+    // Standalone waveform display injection (GT-18)
+    std::atomic<WaveformDisplay*> waveformDisplay{nullptr};
+
+    // Standalone recorder injection (GT-20)
+    std::atomic<AudioRecorder*> audioRecorder{nullptr};
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessor)

@@ -38,12 +38,27 @@ GRAIN/
 │   │   ├── DCBlocker.h          # DC blocking filter (stateful, mono)
 │   │   ├── SpectralFocus.h      # Biquad shelf EQ for spectral focus (stateful, mono)
 │   │   └── GrainDSPPipeline.h   # Per-channel DSP pipeline orchestrator
+│   ├── Standalone/
+│   │   ├── FilePlayerSource.h   # Audio file loader (WAV/AIFF)
+│   │   ├── FilePlayerSource.cpp
+│   │   ├── TransportBar.h       # Transport controls UI
+│   │   ├── TransportBar.cpp
+│   │   ├── WaveformDisplay.h    # Dry + wet waveform overlay
+│   │   ├── WaveformDisplay.cpp
+│   │   ├── AudioFileUtils.h     # File extension validation
+│   │   ├── AudioRecorder.h      # Lock-free WAV recorder
+│   │   └── AudioRecorder.cpp
 │   ├── Tests/
 │   │   ├── TestMain.cpp         # Console app entry point for test runner
 │   │   ├── DSPTests.cpp         # Unit tests (per-module)
 │   │   ├── PipelineTest.cpp     # Integration tests (full pipeline)
 │   │   ├── OversamplingTest.cpp # Oversampling unit tests
-│   │   └── CalibrationTest.cpp  # CalibrationConfig unit tests
+│   │   ├── CalibrationTest.cpp  # CalibrationConfig unit tests
+│   │   ├── FilePlayerTest.cpp   # File player/transport tests
+│   │   ├── TransportBarTest.cpp # Transport bar UI tests
+│   │   ├── WaveformTest.cpp     # Waveform display tests
+│   │   ├── DragDropTest.cpp     # Drag & drop tests
+│   │   └── RecorderTest.cpp     # Recorder tests
 │   ├── PluginProcessor.h    # Audio processing logic
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
@@ -238,7 +253,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- 59 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration)
+- 95 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI + 4 waveform display + 3 drag & drop + 5 recorder)
 - VST3 + Standalone build clean
 - pluginval SUCCESS
 - Internal oversampling: 2× real-time, 4× offline bounce

@@ -14,6 +14,16 @@
             resource="0" file="Source/Tests/OversamplingTest.cpp"/>
       <FILE id="CalibrationTestCpp" name="CalibrationTest.cpp" compile="1"
             resource="0" file="Source/Tests/CalibrationTest.cpp"/>
+      <FILE id="FilePlayerTestCpp" name="FilePlayerTest.cpp" compile="1"
+            resource="0" file="Source/Tests/FilePlayerTest.cpp"/>
+      <FILE id="TransportBarTestCpp" name="TransportBarTest.cpp" compile="1"
+            resource="0" file="Source/Tests/TransportBarTest.cpp"/>
+      <FILE id="WaveformTestCpp" name="WaveformTest.cpp" compile="1"
+            resource="0" file="Source/Tests/WaveformTest.cpp"/>
+      <FILE id="DragDropTestCpp" name="DragDropTest.cpp" compile="1"
+            resource="0" file="Source/Tests/DragDropTest.cpp"/>
+      <FILE id="RecorderTestCpp" name="RecorderTest.cpp" compile="1"
+            resource="0" file="Source/Tests/RecorderTest.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
       <FILE id="tCalibrationConfigH" name="CalibrationConfig.h" compile="0"
@@ -35,16 +45,43 @@
       <FILE id="tGrainDSPPipelineH" name="GrainDSPPipeline.h" compile="0"
             resource="0" file="Source/DSP/GrainDSPPipeline.h"/>
     </GROUP>
+    <GROUP id="{T1000003-0000-0000-0000-000000000003}" name="Standalone">
+      <FILE id="tFilePlayerSourceH" name="FilePlayerSource.h" compile="0"
+            resource="0" file="Source/Standalone/FilePlayerSource.h"/>
+      <FILE id="tFilePlayerSourceCpp" name="FilePlayerSource.cpp" compile="1"
+            resource="0" file="Source/Standalone/FilePlayerSource.cpp"/>
+      <FILE id="tTransportBarH" name="TransportBar.h" compile="0"
+            resource="0" file="Source/Standalone/TransportBar.h"/>
+      <FILE id="tTransportBarCpp" name="TransportBar.cpp" compile="1"
+            resource="0" file="Source/Standalone/TransportBar.cpp"/>
+      <FILE id="tWaveformDisplayH" name="WaveformDisplay.h" compile="0"
+            resource="0" file="Source/Standalone/WaveformDisplay.h"/>
+      <FILE id="tWaveformDisplayCpp" name="WaveformDisplay.cpp" compile="1"
+            resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
+      <FILE id="tAudioFileUtilsH" name="AudioFileUtils.h" compile="0"
+            resource="0" file="Source/Standalone/AudioFileUtils.h"/>
+      <FILE id="tAudioRecorderH" name="AudioRecorder.h" compile="0"
+            resource="0" file="Source/Standalone/AudioRecorder.h"/>
+      <FILE id="tAudioRecorderCpp" name="AudioRecorder.cpp" compile="1"
+            resource="0" file="Source/Standalone/AudioRecorder.cpp"/>
+      <FILE id="tGrainColoursH" name="GrainColours.h" compile="0"
+            resource="0" file="Source/GrainColours.h"/>
+    </GROUP>
   </MAINGROUP>
   <MODULES>
     <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
   </MODULES>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
   <EXPORTFORMATS>
@@ -59,8 +96,13 @@
         <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_graphics" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_gui_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_audio_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_audio_formats" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../JUCE/modules"/>
         <MODULEPATH id="juce_dsp" path="../../../JUCE/modules"/>
       </MODULEPATHS>
     </XCODE_MAC>

@@ -26,6 +26,28 @@
       <GROUP id="{9C5C20A9-6658-22EB-3E2E-F83B1C805EB5}" name="Tests">
         <FILE id="HGLNqB" name="DSPTests.cpp" compile="0" resource="0" file="Source/Tests/DSPTests.cpp"/>
       </GROUP>
+      <GROUP id="{B1C2D3E4-F5A6-7890-BCDE-FA1234567890}" name="Standalone">
+        <FILE id="FilePlayerSourceH" name="FilePlayerSource.h" compile="0"
+              resource="0" file="Source/Standalone/FilePlayerSource.h"/>
+        <FILE id="FilePlayerSourceCpp" name="FilePlayerSource.cpp" compile="1"
+              resource="0" file="Source/Standalone/FilePlayerSource.cpp"/>
+        <FILE id="TransportBarH" name="TransportBar.h" compile="0"
+              resource="0" file="Source/Standalone/TransportBar.h"/>
+        <FILE id="TransportBarCpp" name="TransportBar.cpp" compile="1"
+              resource="0" file="Source/Standalone/TransportBar.cpp"/>
+        <FILE id="WaveformDisplayH" name="WaveformDisplay.h" compile="0"
+              resource="0" file="Source/Standalone/WaveformDisplay.h"/>
+        <FILE id="WaveformDisplayCpp" name="WaveformDisplay.cpp" compile="1"
+              resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
+        <FILE id="AudioFileUtilsH" name="AudioFileUtils.h" compile="0"
+              resource="0" file="Source/Standalone/AudioFileUtils.h"/>
+        <FILE id="AudioRecorderH" name="AudioRecorder.h" compile="0"
+              resource="0" file="Source/Standalone/AudioRecorder.h"/>
+        <FILE id="AudioRecorderCpp" name="AudioRecorder.cpp" compile="1"
+              resource="0" file="Source/Standalone/AudioRecorder.cpp"/>
+      </GROUP>
+      <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
+            resource="0" file="Source/GrainColours.h"/>
       <FILE id="bG1kmQ" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="VgFP9X" name="PluginProcessor.h" compile="0" resource="0"

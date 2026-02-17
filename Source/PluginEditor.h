@@ -11,24 +11,15 @@
 
 #pragma once
 
+#include "GrainColours.h"
 #include "PluginProcessor.h"
+#include "Standalone/AudioFileUtils.h"
+#include "Standalone/AudioRecorder.h"
+#include "Standalone/FilePlayerSource.h"
+#include "Standalone/TransportBar.h"
+#include "Standalone/WaveformDisplay.h"
 
 #include <JuceHeader.h>
-
-//==============================================================================
-// Basic color palette for Phase A
-namespace GrainColours
-{
-const juce::Colour kBackground{0xff1c1917};   // Dark stone
-const juce::Colour kSurface{0xff292524};      // Slightly lighter
-const juce::Colour kText{0xffa8a29e};         // Stone 400
-const juce::Colour kTextBright{0xfff5f5f4};   // Stone 100
-const juce::Colour kAccent{0xffd97706};       // Amber 600
-const juce::Colour kAccentDim{0xff92400e};    // Amber 800
-const juce::Colour kMeterGreen{0xff22c55e};   // Green 500
-const juce::Colour kMeterYellow{0xffeab308};  // Yellow 500
-const juce::Colour kMeterRed{0xffef4444};     // Red 500
-}  // namespace GrainColours
 
 //==============================================================================
 /**
@@ -43,20 +34,34 @@ const juce::Colour kMeterRed{0xffef4444};     // Red 500
  */
 class GRAINAudioProcessorEditor
     : public juce::AudioProcessorEditor
+    , public juce::FileDragAndDropTarget
+    , public FilePlayerSource::Listener
     , private juce::Timer
+    , private TransportBar::Listener
 {
 public:
     explicit GRAINAudioProcessorEditor(GRAINAudioProcessor& /*p*/);
     ~GRAINAudioProcessorEditor() override;
 
+    /** @return true if running as standalone application. */
+    bool isStandaloneMode() const { return standaloneMode; }
+
     //==============================================================================
     void paint(juce::Graphics& /*g*/) override;
     void resized() override;
 
+    //==============================================================================
+    // FileDragAndDropTarget (GT-19)
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void fileDragEnter(const juce::StringArray& files, int x, int y) override;
+    void fileDragExit(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
+
 private:
     //==============================================================================
     void timerCallback() override;
-    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR, const juce::String& label);
+    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR,
+                          const juce::String& label);
 
     // Setup helpers (reduce constructor boilerplate)
     void setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight, const juce::String& suffix = {});
@@ -99,6 +104,39 @@ private:
     float displayOutputL = 0.0f, displayOutputR = 0.0f;
 
     static constexpr float kMeterDecay = 0.85f;
+
+    //==============================================================================
+    // Standalone mode (GT-17)
+    bool standaloneMode = false;
+
+    // Standalone-only components (created only in standalone mode)
+    std::unique_ptr<FilePlayerSource> filePlayer;
+    std::unique_ptr<TransportBar> transportBar;
+    std::unique_ptr<WaveformDisplay> waveformDisplay;
+    std::unique_ptr<AudioRecorder> recorder;
+
+    // TransportBar::Listener callbacks
+    void openFileRequested() override;
+    void stopRequested() override;
+    void exportRequested() override;
+
+    // FilePlayerSource::Listener callbacks (for export workflow)
+    void transportStateChanged(bool isNowPlaying) override;
+    void transportReachedEnd() override;
+
+    // Export state
+    bool exporting = false;
+
+    // File chooser (must persist during async dialog)
+    std::unique_ptr<juce::FileChooser> fileChooser;
+
+    //==============================================================================
+    // Drag & drop state (GT-19)
+    bool dragHovering = false;
+    bool dragAccepted = false;
+
+    /** Load a file into the player and update all standalone components. */
+    void loadFileIntoPlayer(const juce::File& file);
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GRAINAudioProcessorEditor)
