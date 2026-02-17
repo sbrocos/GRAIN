@@ -20,7 +20,7 @@
  * Transport bar component for the GRAIN standalone application.
  *
  * Layout (50px height):
- *   [Open] [▶/■] [↻] [Export]   00:12 / 01:45
+ *   [Open] [■] [▶/⏸] [↻] [Export]   00:12 / 01:45
  *   [═══════════════●══════════════════════════]
  *
  * Connects to a FilePlayerSource for transport control and state.
@@ -41,6 +41,9 @@ public:
 
         /** Called when the user clicks "Open" to load a file. */
         virtual void openFileRequested() = 0;
+
+        /** Called when the user clicks "Stop" (rewind to start). */
+        virtual void stopRequested() = 0;
 
         /** Called when the user clicks "Export" to record processed output. */
         virtual void exportRequested() = 0;
@@ -83,7 +86,8 @@ private:
 
     // Buttons
     juce::TextButton openButton{"Open"};
-    juce::TextButton playStopButton;
+    juce::TextButton stopButton{"Stop"};
+    juce::TextButton playPauseButton{"Play"};
     juce::TextButton loopButton;
     juce::TextButton exportButton{"Export"};
 

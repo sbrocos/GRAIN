@@ -28,11 +28,21 @@ TransportBar::TransportBar(FilePlayerSource& filePlayer) : player(filePlayer)
     openButton.onClick = [this]() { listeners.call(&Listener::openFileRequested); };
     addAndMakeVisible(openButton);
 
-    // Play/Stop button
-    playStopButton.setButtonText("Play");
-    playStopButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    playStopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
-    playStopButton.onClick = [this]()
+    // Stop button — rewinds to start
+    stopButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
+    stopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    stopButton.onClick = [this]()
+    {
+        player.stop();
+        player.seekToPosition(0.0);
+        listeners.call(&Listener::stopRequested);
+    };
+    addAndMakeVisible(stopButton);
+
+    // Play/Pause button
+    playPauseButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
+    playPauseButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    playPauseButton.onClick = [this]()
     {
         if (player.isPlaying())
         {
@@ -43,7 +53,7 @@ TransportBar::TransportBar(FilePlayerSource& filePlayer) : player(filePlayer)
             player.play();
         }
     };
-    addAndMakeVisible(playStopButton);
+    addAndMakeVisible(playPauseButton);
 
     // Loop button (toggle)
     loopButton.setButtonText("Loop");
@@ -127,7 +137,10 @@ void TransportBar::resized()
     openButton.setBounds(controlRow.removeFromLeft(kButtonWidth).reduced(0, 0));
     controlRow.removeFromLeft(kButtonGap);
 
-    playStopButton.setBounds(controlRow.removeFromLeft(kButtonWidth).reduced(0, 0));
+    stopButton.setBounds(controlRow.removeFromLeft(kButtonWidth).reduced(0, 0));
+    controlRow.removeFromLeft(kButtonGap);
+
+    playPauseButton.setBounds(controlRow.removeFromLeft(kButtonWidth).reduced(0, 0));
     controlRow.removeFromLeft(kButtonGap);
 
     loopButton.setBounds(controlRow.removeFromLeft(kButtonWidth).reduced(0, 0));
@@ -180,8 +193,9 @@ void TransportBar::updateButtonStates()
     const bool fileLoaded = player.isFileLoaded();
     const bool playing = player.isPlaying();
 
-    playStopButton.setButtonText(playing ? "Stop" : "Play");
-    playStopButton.setEnabled(fileLoaded);
+    playPauseButton.setButtonText(playing ? "Pause" : "Play");
+    playPauseButton.setEnabled(fileLoaded);
+    stopButton.setEnabled(fileLoaded);
     loopButton.setEnabled(fileLoaded);
     exportButton.setEnabled(fileLoaded && !playing);
 }

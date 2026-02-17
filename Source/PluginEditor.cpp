@@ -341,6 +341,14 @@ void GRAINAudioProcessorEditor::openFileRequested()
                              });
 }
 
+void GRAINAudioProcessorEditor::stopRequested()
+{
+    if (waveformDisplay != nullptr)
+    {
+        waveformDisplay->clearWetBuffer();
+    }
+}
+
 void GRAINAudioProcessorEditor::exportRequested()
 {
     if (filePlayer == nullptr || !filePlayer->isFileLoaded() || recorder == nullptr)

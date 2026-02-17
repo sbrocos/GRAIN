@@ -117,6 +117,7 @@ private:
 
     // TransportBar::Listener callbacks
     void openFileRequested() override;
+    void stopRequested() override;
     void exportRequested() override;
 
     // FilePlayerSource::Listener callbacks (for export workflow)
