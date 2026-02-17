@@ -54,8 +54,11 @@ public:
 
     //==============================================================================
     /** Push processed (wet) output samples for real-time waveform accumulation.
-     *  Called from the audio thread via the processor. Thread-safe (uses FIFO). */
-    void pushWetSamples(const float* samples, int numSamples);
+     *  Called from the audio thread via the processor. Thread-safe (uses FIFO).
+     *  @param samples        Pointer to mono sample data.
+     *  @param numSamples     Number of samples in the buffer.
+     *  @param samplePosition Position (in samples) within the file where this block starts. */
+    void pushWetSamples(const float* samples, int numSamples, juce::int64 samplePosition);
 
     /** Clear the wet waveform buffer (e.g., when a new file is loaded). */
     void clearWetBuffer();
@@ -100,10 +103,16 @@ private:
     };
 
     std::vector<WetColumn> wetColumns;
+
+    /** FIFO entry: a sample value tagged with its file position. */
+    struct WetSample
+    {
+        float value = 0.0f;
+        juce::int64 filePosition = 0;
+    };
+
     juce::AbstractFifo wetFifo{2048};
-    std::vector<float> wetFifoBuffer;
-    int wetSampleRate = 44100;
-    int wetTotalSamples = 0;
+    std::vector<WetSample> wetFifoBuffer;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WaveformDisplay)

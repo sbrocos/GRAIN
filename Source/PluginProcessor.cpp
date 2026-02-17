@@ -284,8 +284,12 @@ void GRAINAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     auto* wfDisplay = waveformDisplay.load();
     if (wfDisplay != nullptr && player != nullptr && player->isPlaying())
     {
-        // Push mono-summed output for waveform visualization
-        wfDisplay->pushWetSamples(buffer.getReadPointer(0), buffer.getNumSamples());
+        // Compute sample position at the START of this block
+        // (player has already advanced past it via getNextAudioBlock)
+        auto const blockStartSample = static_cast<juce::int64>(
+            (player->getCurrentPosition() * player->getFileSampleRate()) - buffer.getNumSamples());
+        wfDisplay->pushWetSamples(buffer.getReadPointer(0), buffer.getNumSamples(),
+                                  std::max(static_cast<juce::int64>(0), blockStartSample));
     }
 
     // Push processed output to recorder (GT-20)

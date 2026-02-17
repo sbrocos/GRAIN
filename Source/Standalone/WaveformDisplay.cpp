@@ -22,7 +22,7 @@ constexpr float kCursorWidth = 2.0f;
 //==============================================================================
 WaveformDisplay::WaveformDisplay(FilePlayerSource& filePlayer) : player(filePlayer)
 {
-    wetFifoBuffer.resize(2048, 0.0f);
+    wetFifoBuffer.resize(2048, WetSample{});
 
     // Register as transport listener
     player.addListener(this);
@@ -110,7 +110,7 @@ void WaveformDisplay::transportReachedEnd()
 }
 
 //==============================================================================
-void WaveformDisplay::pushWetSamples(const float* samples, int numSamples)
+void WaveformDisplay::pushWetSamples(const float* samples, int numSamples, juce::int64 samplePosition)
 {
     // Write to FIFO (audio thread safe)
     const int available = wetFifo.getFreeSpace();
@@ -127,14 +127,15 @@ void WaveformDisplay::pushWetSamples(const float* samples, int numSamples)
     int size2 = 0;
     wetFifo.prepareToWrite(toWrite, start1, size1, start2, size2);
 
-    if (size1 > 0)
+    // Write position-tagged samples
+    for (int i = 0; i < size1; ++i)
     {
-        std::copy(samples, samples + size1, wetFifoBuffer.data() + start1);
+        wetFifoBuffer[static_cast<size_t>(start1 + i)] = {samples[i], samplePosition + i};
     }
 
-    if (size2 > 0)
+    for (int i = 0; i < size2; ++i)
     {
-        std::copy(samples + size1, samples + size1 + size2, wetFifoBuffer.data() + start2);
+        wetFifoBuffer[static_cast<size_t>(start2 + i)] = {samples[size1 + i], samplePosition + size1 + i};
     }
 
     wetFifo.finishedWrite(size1 + size2);
@@ -148,8 +149,6 @@ void WaveformDisplay::clearWetBuffer()
         col.maxVal = 0.0f;
         col.sampleCount = 0;
     }
-
-    wetTotalSamples = 0;
 
     // Drain any pending FIFO data
     const int available = wetFifo.getNumReady();
@@ -166,7 +165,7 @@ void WaveformDisplay::clearWetBuffer()
 
 bool WaveformDisplay::hasWetData() const
 {
-    return wetTotalSamples > 0;
+    return std::any_of(wetColumns.begin(), wetColumns.end(), [](const WetColumn& c) { return c.sampleCount > 0; });
 }
 
 //==============================================================================
@@ -232,21 +231,18 @@ void WaveformDisplay::timerCallback()
 
             for (int i = 0; i < size; ++i)
             {
-                float const sample = wetFifoBuffer[static_cast<size_t>(start + i)];
+                auto const& ws = wetFifoBuffer[static_cast<size_t>(start + i)];
 
-                // Map this sample to a column based on total accumulated sample count
-                const int sampleIndex = wetTotalSamples + i;
+                // Map this sample to a column based on its actual file position
                 auto const columnIndex = static_cast<int>(
-                    (static_cast<double>(sampleIndex) / static_cast<double>(totalFileSamples)) * numColumns);
+                    (static_cast<double>(ws.filePosition) / static_cast<double>(totalFileSamples)) * numColumns);
                 const int clampedCol = juce::jlimit(0, numColumns - 1, columnIndex);
 
                 auto& col = wetColumns[static_cast<size_t>(clampedCol)];
-                col.minVal = std::min(col.minVal, sample);
-                col.maxVal = std::max(col.maxVal, sample);
+                col.minVal = std::min(col.minVal, ws.value);
+                col.maxVal = std::max(col.maxVal, ws.value);
                 col.sampleCount++;
             }
-
-            wetTotalSamples += size;
         };
 
         processChunk(start1, size1);

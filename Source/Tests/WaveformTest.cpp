@@ -193,7 +193,7 @@ private:
                 0.5f * std::sin(2.0f * juce::MathConstants<float>::pi * 440.0f * static_cast<float>(i) / 44100.0f);
         }
 
-        display.pushWetSamples(testSamples.data(), kNumSamples);
+        display.pushWetSamples(testSamples.data(), kNumSamples, 0);
 
         // After pushing, the FIFO has data but wet columns aren't updated
         // until timerCallback drains the FIFO. We check hasWetData is still false
