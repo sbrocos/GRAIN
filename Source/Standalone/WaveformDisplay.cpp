@@ -268,8 +268,10 @@ void WaveformDisplay::drawDryWaveform(juce::Graphics& g, juce::Rectangle<int> bo
         return;
     }
 
+    // Draw mono (channel 0 only) to match the wet waveform representation.
+    // The wet signal is captured from channel 0, so dry must be consistent.
     g.setColour(GrainColours::kText.withAlpha(kDryAlpha));
-    thumbnail.drawChannels(g, bounds, 0.0, thumbnail.getTotalLength(), 1.0f);
+    thumbnail.drawChannel(g, bounds, 0.0, thumbnail.getTotalLength(), 0, 1.0f);
 }
 
 void WaveformDisplay::drawWetWaveform(juce::Graphics& g, juce::Rectangle<int> bounds)
