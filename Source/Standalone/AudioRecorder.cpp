@@ -168,14 +168,14 @@ void AudioRecorder::writeFromFifo()
     if (size1 > 0)
     {
         // Create a sub-buffer view for this segment
-        juce::AudioBuffer<float> segment(fifoBuffer.getArrayOfWritePointers(), numRecordChannels, start1, size1);
+        const juce::AudioBuffer<float> segment(fifoBuffer.getArrayOfWritePointers(), numRecordChannels, start1, size1);
         writer->writeFromAudioSampleBuffer(segment, 0, size1);
     }
 
     // Write second segment (wrap-around)
     if (size2 > 0)
     {
-        juce::AudioBuffer<float> segment(fifoBuffer.getArrayOfWritePointers(), numRecordChannels, start2, size2);
+        const juce::AudioBuffer<float> segment(fifoBuffer.getArrayOfWritePointers(), numRecordChannels, start2, size2);
         writer->writeFromAudioSampleBuffer(segment, 0, size2);
     }
 
