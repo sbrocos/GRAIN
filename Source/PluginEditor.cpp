@@ -15,9 +15,9 @@
 namespace
 {
 constexpr int kEditorWidth = 500;
-constexpr int kEditorHeight = 350;
-constexpr int kHeaderHeight = 50;
-constexpr int kFooterHeight = 100;
+constexpr int kEditorHeight = 440;
+constexpr int kHeaderHeight = 55;
+constexpr int kFooterHeight = 120;
 constexpr int kMeterColumnWidth = 60;    // meter + padding
 constexpr int kTransportBarHeight = 50;  // standalone transport bar
 constexpr int kWaveformHeight = 120;     // standalone waveform display
@@ -51,6 +51,7 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     , processor(p)
     , standaloneMode(p.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
 {
+    setLookAndFeel(&grainLookAndFeel);
 
     auto& apvts = processor.getAPVTS();
 
@@ -91,10 +92,6 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
 
     // === Bypass ===
     bypassButton.setClickingTogglesState(true);
-    bypassButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    bypassButton.setColour(juce::TextButton::buttonOnColourId, GrainColours::kAccent);
-    bypassButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
-    bypassButton.setColour(juce::TextButton::textColourOnId, GrainColours::kTextBright);
     addAndMakeVisible(bypassButton);
     bypassAttachment =
         std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
@@ -130,6 +127,7 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
 
 GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
 {
+    setLookAndFeel(nullptr);
     stopTimer();
 
     if (standaloneMode)
@@ -157,15 +155,20 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     // Background
     g.fillAll(GrainColours::kBackground);
 
-    // Header area
+    // Header area (sage green bg with dark text)
     const auto headerArea = getLocalBounds().removeFromTop(kHeaderHeight);
-    g.setColour(GrainColours::kSurface);
-    g.fillRect(headerArea);
 
-    // Title — JUCE 8 Font API
-    g.setColour(GrainColours::kTextBright);
+    // Title
+    g.setColour(GrainColours::kText);
     g.setFont(juce::Font(juce::FontOptions(24.0f).withStyle("Bold")));
     g.drawText("GRAIN", headerArea.reduced(15, 0), juce::Justification::centredLeft);
+
+    // Subtitle
+    auto subtitleArea = headerArea.reduced(15, 0);
+    subtitleArea.removeFromTop(30);
+    g.setColour(GrainColours::kTextDim);
+    g.setFont(juce::Font(juce::FontOptions(9.0f).withStyle("Bold")));
+    g.drawText("MICRO-HARMONIC SATURATION", subtitleArea, juce::Justification::centredLeft);
 
     // Meters
     auto bounds = getLocalBounds();
@@ -182,14 +185,25 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
     drawMeter(g, inputMeterArea, displayInputL, displayInputR, "IN");
     drawMeter(g, outputMeterArea, displayOutputL, displayOutputR, "OUT");
 
-    // Footer separator
-    g.setColour(GrainColours::kSurface);
+    // Footer separator line + version/copyright
     auto footerBounds = getLocalBounds();
     if (standaloneMode)
     {
         footerBounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
     }
-    g.fillRect(footerBounds.removeFromBottom(kFooterHeight));
+    auto footerArea = footerBounds.removeFromBottom(kFooterHeight);
+
+    // Separator line at top of footer
+    g.setColour(juce::Colours::black.withAlpha(0.1f));
+    g.drawHorizontalLine(footerArea.getY(), static_cast<float>(footerArea.getX()),
+                         static_cast<float>(footerArea.getRight()));
+
+    // Version and copyright in the bottom strip
+    auto infoArea = footerArea.removeFromBottom(20).reduced(15, 0);
+    g.setColour(GrainColours::kTextDim);
+    g.setFont(juce::Font(juce::FontOptions(10.0f)));
+    g.drawText("v1.0.0", infoArea, juce::Justification::centredLeft);
+    g.drawText(juce::CharPointer_UTF8("Sergio Brocos \xc2\xa9 2025"), infoArea, juce::Justification::centredRight);
 
     // Drag & drop hover overlay (GT-19)
     if (dragHovering)
@@ -276,42 +290,44 @@ void GRAINAudioProcessorEditor::resized()
     auto headerArea = bounds.removeFromTop(kHeaderHeight);
     bypassButton.setBounds(headerArea.removeFromRight(80).reduced(10));
 
-    // Footer (secondary controls — 4 items: INPUT | MIX | FOCUS | OUTPUT)
+    // Footer (secondary controls: INPUT | MIX | OUTPUT — Focus above in future subtask)
     auto footerArea = bounds.removeFromBottom(kFooterHeight);
-    auto footerControls = footerArea.reduced(20, 10);
+    auto footerControls = footerArea.reduced(10, 5);
 
-    auto controlWidth = footerControls.getWidth() / 4;
+    // Proportional widths: small=75 (50px knob), medium=110 (80px knob)
+    constexpr int kSmallKnobArea = 75;
+    constexpr int kMediumKnobArea = 110;
 
-    auto inputArea = footerControls.removeFromLeft(controlWidth);
-    inputLabel.setBounds(inputArea.removeFromTop(20));
+    auto inputArea = footerControls.removeFromLeft(kSmallKnobArea);
+    inputLabel.setBounds(inputArea.removeFromTop(18));
     inputSlider.setBounds(inputArea);
 
-    auto mixArea = footerControls.removeFromLeft(controlWidth);
-    mixLabel.setBounds(mixArea.removeFromTop(20));
+    auto mixArea = footerControls.removeFromLeft(kMediumKnobArea);
+    mixLabel.setBounds(mixArea.removeFromTop(18));
     mixSlider.setBounds(mixArea);
 
-    auto focusArea = footerControls.removeFromLeft(controlWidth);
-    focusLabel.setBounds(focusArea.removeFromTop(20));
-    focusSelector.setBounds(focusArea.reduced(10, 20));
+    auto focusArea = footerControls.removeFromLeft(kSmallKnobArea);
+    focusLabel.setBounds(focusArea.removeFromTop(18));
+    focusSelector.setBounds(focusArea.reduced(5, 15));
 
     auto outputArea = footerControls;
-    outputLabel.setBounds(outputArea.removeFromTop(20));
-    outputSlider.setBounds(outputArea);
+    outputLabel.setBounds(outputArea.removeFromTop(18));
+    outputSlider.setBounds(outputArea.withWidth(kSmallKnobArea).withX(outputArea.getRight() - kSmallKnobArea));
 
-    // Main area (big knobs — creative controls: GRAIN + WARMTH)
+    // Main area (big knobs — creative controls: GRAIN + WARM)
     auto mainArea = bounds;
     mainArea.removeFromLeft(kMeterColumnWidth);
     mainArea.removeFromRight(kMeterColumnWidth);
-    mainArea.reduce(10, 20);
+    mainArea.reduce(10, 10);
 
     auto knobWidth = mainArea.getWidth() / 2;
 
     auto grainArea = mainArea.removeFromLeft(knobWidth);
-    grainLabel.setBounds(grainArea.removeFromTop(25));
+    grainLabel.setBounds(grainArea.removeFromTop(20));
     grainSlider.setBounds(grainArea);
 
     auto warmthArea = mainArea;
-    warmthLabel.setBounds(warmthArea.removeFromTop(25));
+    warmthLabel.setBounds(warmthArea.removeFromTop(20));
     warmthSlider.setBounds(warmthArea);
 }
 
