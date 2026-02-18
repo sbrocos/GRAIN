@@ -26,6 +26,15 @@ GrainLookAndFeel::GrainLookAndFeel()
     setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
     setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
 
+    // TextEditor colors (for editable slider value fields)
+    setColour(juce::TextEditor::textColourId, GrainColours::kText);
+    setColour(juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::highlightColourId, GrainColours::kAccent.withAlpha(0.3f));
+    setColour(juce::TextEditor::highlightedTextColourId, GrainColours::kText);
+    setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::CaretComponent::caretColourId, GrainColours::kAccent);
+
     // ComboBox (Focus selector — until replaced by TextButtons in subtask 5)
     setColour(juce::ComboBox::backgroundColourId, GrainColours::kSurface);
     setColour(juce::ComboBox::textColourId, GrainColours::kTextBright);
@@ -48,16 +57,35 @@ GrainLookAndFeel::GrainLookAndFeel()
 //==============================================================================
 void GrainLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label)
 {
-    // Only draw text, skip background/outline entirely
+    // Skip drawing when being edited (TextEditor takes over)
     if (label.isBeingEdited())
     {
         return;
     }
 
-    auto textColour = label.findColour(juce::Label::textColourId);
-    g.setColour(textColour);
-    g.setFont(label.getFont());
+    // Use Roboto for slider value labels (they are owned by a Slider)
+    const bool isSliderLabel = (dynamic_cast<juce::Slider*>(label.getParentComponent()) != nullptr);
+
+    g.setColour(label.findColour(juce::Label::textColourId));
+    g.setFont(isSliderLabel ? getSliderFont() : label.getFont());
     g.drawText(label.getText(), label.getLocalBounds().toFloat(), label.getJustificationType(), false);
+}
+
+//==============================================================================
+void GrainLookAndFeel::fillTextEditorBackground(juce::Graphics& /*g*/, int /*width*/, int /*height*/,
+                                                juce::TextEditor& /*editor*/)
+{
+    // Transparent background — editing looks like inline text, not a text field
+}
+
+void GrainLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height, juce::TextEditor& editor)
+{
+    // Subtle orange outline only when focused (actively editing)
+    if (editor.hasKeyboardFocus(true))
+    {
+        g.setColour(GrainColours::kAccent.withAlpha(0.5f));
+        g.drawRoundedRectangle(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 2.0f, 1.0f);
+    }
 }
 
 //==============================================================================

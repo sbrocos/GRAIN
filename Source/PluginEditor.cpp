@@ -29,6 +29,7 @@ void GRAINAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, int text
 {
     slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, textBoxWidth, textBoxHeight);
+    slider.setTextBoxIsEditable(true);
 
     if (suffix.isNotEmpty())
     {

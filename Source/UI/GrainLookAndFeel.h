@@ -37,6 +37,11 @@ public:
     void drawLabel(juce::Graphics& g, juce::Label& label) override;
 
     //==============================================================================
+    // TextEditor styling (for editable slider value fields)
+    void fillTextEditorBackground(juce::Graphics& g, int width, int height, juce::TextEditor& editor) override;
+    void drawTextEditorOutline(juce::Graphics& g, int width, int height, juce::TextEditor& editor) override;
+
+    //==============================================================================
     /** Returns the font used for slider value text (Roboto for numbers). */
     [[nodiscard]] static juce::Font getSliderFont();
 
