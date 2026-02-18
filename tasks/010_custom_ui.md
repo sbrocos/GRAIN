@@ -1,148 +1,319 @@
-# Task 010: Custom UI (Phase B)
+# Task 010: Custom UI (Phase B) — Revised
 
 ## Objective
 
-Replace the functional Phase A editor with a polished custom UI. Phase A established structure and connectivity (standard JUCE sliders/buttons). Phase B adds visual refinement: custom knob graphics, segmented meters, LED bypass indicator, refined typography, and optimized repaint. The standalone transport bar and waveform display also receive visual polish to match.
+Replace the functional Phase A editor with a polished custom UI based on the approved JSX mockup. Phase A established structure and connectivity. Phase B adds visual refinement: custom dot-style knobs, vertical segmented meters with peak hold, LED bypass indicator, editable value fields, and consistent typography.
 
-**Constraint:** No parameter, DSP, or layout changes. Same 500 x 350px (VST3) / 500 x 520px (Standalone). Same 7 parameters. Visual-only transformation.
+**Reference:** `GrainUI.jsx` (React mockup)
+
+**Constraint:** Visual-only transformation. Same parameters, same DSP.
+
+---
+
+## Design Summary (from JSX Mockup)
+
+### Layout Structure
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  GRAIN                                              ⏻       │
+│  MICRO-HARMONIC SATURATION                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ▐█▌         GRAIN        WARM          ▐█▌               │
+│   IN          (large)     (large)        OUT               │
+│   ▐█▌           ◉           ◉            ▐█▌               │
+│                                                             │
+│                [ LOW | MID | HIGH ]                         │
+│                      FOCUS                                  │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   INPUT              MIX              OUTPUT                │
+│   (small)          (medium)          (small)                │
+│     ◉                 ◉                 ◉                   │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  v1.0.0                          Sergio Brocos © 2025       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Window Dimensions
+
+| Target | Width | Height |
+|--------|-------|--------|
+| VST3 Plugin | 500 px | 420 px |
+| Standalone | 500 px | 590 px |
 
 ---
 
 ## Prerequisites
 
 - Task 008 completed (Phase A — functional layout)
-- Task 009b completed (Standalone file player, transport bar, waveform)
+- Task 009b completed (Standalone file player)
+- Approved JSX mockup (`GrainUI.jsx`)
 
 ---
 
-## Design Principles
+## Color Palette
 
-1. **Minimal and safe UX** — No new controls, no hidden features, no cognitive load
-2. **Dark, warm aesthetic** — Consistent with the existing GrainColours palette (stone/amber)
-3. **Analog-inspired** — Subtle textures, warm colors, no skeuomorphism
-4. **Readable** — Labels and values legible at 500px width
-5. **Performance** — Meter repaint restricted to meter areas only (not full editor)
+Based on JSX mockup. Update `Source/GrainColours.h`:
+
+```cpp
+namespace GrainColours
+{
+    // === Background & Surfaces ===
+    inline const juce::Colour kBackground   {0xffB6C1B9};  // Sage green (main bg)
+    inline const juce::Colour kSurface      {0xff1a1a1a};  // Knob body, meters bg
+    inline const juce::Colour kSurfaceLight {0xff3a3a3a};  // Knob ring, inactive dots
+    
+    // === Accent ===
+    inline const juce::Colour kAccent       {0xffd97706};  // Active dots, selected buttons
+    
+    // === Text ===
+    inline const juce::Colour kText         {0xff1a1a1a};  // Labels on light bg
+    inline const juce::Colour kTextDim      {0xff4a4a4a};  // Subtitle, footer
+    inline const juce::Colour kTextBright   {0xffffffff};  // Text on dark bg
+    inline const juce::Colour kTextMuted    {0xff888888};  // Inactive button text
+    
+    // === Meters ===
+    inline const juce::Colour kMeterGreen   {0xff22c55e};  // 0-75%
+    inline const juce::Colour kMeterYellow  {0xffeab308};  // 75-90%
+    inline const juce::Colour kMeterRed     {0xffef4444};  // 90-100%
+    inline const juce::Colour kMeterOff     {0xff3a3a3a};  // Inactive segments
+    
+    // === Bypass LED ===
+    inline const juce::Colour kBypassOn     {0xffd97706};  // Processing (orange)
+    inline const juce::Colour kBypassOff    {0xff1a1a1a};  // Bypassed (dark)
+}
+```
 
 ---
 
 ## Subtasks
 
-### Subtask 1: GrainLookAndFeel + Custom Knobs
+### Subtask 1: GrainLookAndFeel + Dot-Style Knobs
 
-**Objective:** Create a custom `LookAndFeel` class and replace the default JUCE rotary slider rendering with custom-painted knobs.
+**Objective:** Create custom `LookAndFeel` with dot-style rotary sliders matching the JSX mockup.
 
 **Files to create:**
 - `Source/UI/GrainLookAndFeel.h`
 - `Source/UI/GrainLookAndFeel.cpp`
 
 **Files to modify:**
-- `Source/PluginEditor.h` — Add `GrainLookAndFeel` member (declared before all components)
-- `Source/PluginEditor.cpp` — Apply LookAndFeel in constructor, clear in destructor
-- `GRAIN.jucer` — Add `Source/UI/` group
-- `GRAINTests.jucer` — Add `Source/UI/` group (if needed for compilation)
+- `Source/PluginEditor.h`
+- `Source/PluginEditor.cpp`
+- `Source/GrainColours.h`
+- `GRAIN.jucer`
 
-**Scope:**
+**Knob Design Spec (from JSX):**
 
-`GrainLookAndFeel` extends `juce::LookAndFeel_V4`:
-- `drawRotarySlider()` — Custom knob with filled arc + dot indicator
-- `drawButtonBackground()` / `drawButtonText()` — Rounded rect buttons with GrainColours
-- `drawComboBox()` / `drawPopupMenuItem()` — Styled Focus selector
-- `drawLabel()` — Consistent label styling
-- Default font via `FontOptions` (JUCE 8 API)
+| Element | Description |
+|---------|-------------|
+| Dot arc | Circle of dots around knob, 270° range, opening at bottom |
+| Active dots | Orange (#d97706), from min to current value |
+| Inactive dots | Dark gray (#1a1a1a) |
+| Knob body | Black circle with subtle gradient (#2a2a2a → #1a1a1a) |
+| Inner ring | 2px border (#3a3a3a), inset 3px |
+| Indicator | White dot on knob face, rotates with value |
 
-**Knob design spec:**
+**Knob Sizes:**
 
-| Element | Spec |
-|---------|------|
-| Background arc | Full circle, `kSurface` color, 3px stroke |
-| Value arc | Partial arc (min to current), `kAccent` color, 3px stroke |
-| Dot indicator | Small filled circle on the arc at current value position |
-| Value text | Below knob, current numeric value |
-| Label | Above knob, parameter name |
+| Size | Diameter | Dot count | Dot radius | Usage |
+|------|----------|-----------|------------|-------|
+| Large | 120 px | 35 | 3 px | GRAIN, WARM |
+| Medium | 80 px | 24 | 3.5 px | MIX |
+| Small | 60 px | 21 | 3 px | INPUT, OUTPUT |
 
-**Big knobs** (GRAIN, WARMTH): ~100px diameter
-**Small knobs** (INPUT, MIX, OUTPUT): ~60px diameter
-
-No images/bitmaps. Pure `juce::Graphics` drawing (resolution-independent).
-
-**Technical notes:**
-
-```cpp
-// LookAndFeel lifecycle — CRITICAL ordering
-// In PluginEditor constructor (BEFORE setSize):
-setLookAndFeel(&grainLookAndFeel);
-
-// In PluginEditor destructor (BEFORE any component cleanup):
-setLookAndFeel(nullptr);
-```
+**Implementation:**
 
 ```cpp
 void GrainLookAndFeel::drawRotarySlider(
-    juce::Graphics& g,
-    int x, int y, int width, int height,
-    float sliderPosProportional,
-    float rotaryStartAngle,
-    float rotaryEndAngle,
-    juce::Slider& slider)
+    juce::Graphics& g, int x, int y, int width, int height,
+    float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
+    juce::Slider& slider) override
 {
-    // 1. Calculate arc geometry from bounds
-    // 2. Draw background arc (full range, kSurface)
-    // 3. Draw value arc (min to current, kAccent)
-    // 4. Draw dot indicator at current position
+    // Determine size category from slider properties or dimensions
+    const bool isLarge = width >= 140;
+    const bool isMedium = width >= 100 && width < 140;
+    
+    const int dotCount = isLarge ? 35 : (isMedium ? 24 : 21);
+    const float dotRadius = isLarge ? 3.0f : (isMedium ? 3.5f : 3.0f);
+    const float knobRadius = isLarge ? 60.0f : (isMedium ? 40.0f : 30.0f);
+    
+    auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
+    auto centre = bounds.getCentre();
+    
+    // 1. Draw dot arc (opening at bottom)
+    const float dotArcRadius = knobRadius + 15.0f;
+    for (int i = 0; i < dotCount; ++i)
+    {
+        float proportion = static_cast<float>(i) / static_cast<float>(dotCount - 1);
+        float angle = rotaryStartAngle + proportion * (rotaryEndAngle - rotaryStartAngle);
+        
+        float dotX = centre.x + dotArcRadius * std::cos(angle - juce::MathConstants<float>::halfPi);
+        float dotY = centre.y + dotArcRadius * std::sin(angle - juce::MathConstants<float>::halfPi);
+        
+        bool isActive = proportion <= sliderPos;
+        g.setColour(isActive ? GrainColours::kAccent : GrainColours::kSurface);
+        g.fillEllipse(dotX - dotRadius, dotY - dotRadius, dotRadius * 2.0f, dotRadius * 2.0f);
+    }
+    
+    // 2. Draw knob body with gradient
+    juce::ColourGradient gradient(
+        juce::Colour(0xff2a2a2a), centre.x - knobRadius * 0.5f, centre.y - knobRadius * 0.5f,
+        juce::Colour(0xff1a1a1a), centre.x + knobRadius * 0.5f, centre.y + knobRadius * 0.5f,
+        false);
+    g.setGradientFill(gradient);
+    g.fillEllipse(centre.x - knobRadius, centre.y - knobRadius, knobRadius * 2.0f, knobRadius * 2.0f);
+    
+    // 3. Draw inner ring
+    g.setColour(GrainColours::kSurfaceLight);
+    const float ringInset = 3.0f;
+    g.drawEllipse(centre.x - knobRadius + ringInset, centre.y - knobRadius + ringInset,
+                  (knobRadius - ringInset) * 2.0f, (knobRadius - ringInset) * 2.0f, 2.0f);
+    
+    // 4. Draw indicator dot
+    float indicatorAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+    float indicatorDistance = knobRadius - (isLarge ? 22.0f : (isMedium ? 16.0f : 14.0f));
+    float indX = centre.x + indicatorDistance * std::cos(indicatorAngle - juce::MathConstants<float>::halfPi);
+    float indY = centre.y + indicatorDistance * std::sin(indicatorAngle - juce::MathConstants<float>::halfPi);
+    
+    float indicatorRadius = isLarge ? 5.5f : (isMedium ? 4.0f : 3.5f);
+    g.setColour(juce::Colours::white);
+    g.fillEllipse(indX - indicatorRadius, indY - indicatorRadius, indicatorRadius * 2.0f, indicatorRadius * 2.0f);
 }
 ```
 
 **Acceptance criteria:**
-- [ ] All 5 rotary sliders render with custom arc + dot style
-- [ ] Big knobs visually larger than small knobs
-- [ ] Buttons (Bypass, transport) render with rounded style
-- [ ] Focus ComboBox styled consistently
-- [ ] Labels and text consistent with GrainColours
-- [ ] pluginval still passes
-- [ ] All unit tests still pass
+- [ ] All 5 knobs render with dot-style arc
+- [ ] Large knobs (GRAIN, WARM) visibly bigger than small (INPUT, OUTPUT)
+- [ ] MIX knob is medium size
+- [ ] Active dots are orange, inactive are dark
+- [ ] White indicator dot rotates correctly
+- [ ] Dot arc opening is at bottom (standard knob orientation)
+- [ ] pluginval passes
+- [ ] All unit tests pass
 
 ---
 
-### Subtask 2: Segmented Meters + Peak Hold
+### Subtask 2: Editable Value Fields
 
-**Objective:** Replace solid-fill meter bars with segmented LED-style meters and add peak hold indicators.
+**Objective:** Make the value display below each knob editable via double-click.
 
 **Files to modify:**
-- `Source/PluginEditor.h` — Add `PeakHold` struct, meter bounds members
-- `Source/PluginEditor.cpp` — Rewrite `drawMeter()`, optimize `timerCallback()` repaint
+- `Source/PluginEditor.cpp`
+- `Source/UI/GrainLookAndFeel.cpp`
 
-**Scope:**
+**Behavior Spec:**
 
-**Meter design spec:**
+| Action | Result |
+|--------|--------|
+| Normal view | Appears as static text ("25%", "0 dB") |
+| Double-click on value | Activates text editing, selects all text |
+| Type value | Replaces current value |
+| Enter / click outside | Confirms and applies value |
+| Escape | Cancels edit, restores previous value |
+| Out-of-range value | Clamps to valid range |
 
-| Element | Spec |
-|---------|------|
-| Segments | 12-16 horizontal bars per channel, 2px gap between |
-| Green zone | Bottom 70% of range (-60 to -18 dB) |
-| Yellow zone | 70%-90% (-18 to -6 dB) |
-| Red zone | Top 10% (-6 to 0 dB) |
-| Peak hold | Top segment stays lit for ~1s after peak, then fades |
-| Background | Dark segments visible even when silent |
-
-**Repaint optimization:**
-- Current Phase A: full `repaint()` at 30 FPS
-- Subtask 2: `repaint(inputMeterBounds)` and `repaint(outputMeterBounds)` only
-- Store bounds as `juce::Rectangle<int>` members computed once in `resized()`
-
-**Peak hold implementation:**
+**Implementation:**
 
 ```cpp
+// In PluginEditor constructor - configure each slider
+grainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
+grainSlider.setTextBoxIsEditable(true);
+
+// In GrainLookAndFeel - style the text editor to look like plain text
+void GrainLookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int height,
+                                                 juce::TextEditor& editor) override
+{
+    // Transparent background - appears as plain text
+    g.setColour(juce::Colours::transparentBlack);
+    g.fillAll();
+}
+
+void GrainLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height,
+                                              juce::TextEditor& editor) override
+{
+    // Only show subtle outline when focused (editing)
+    if (editor.hasKeyboardFocus(true))
+    {
+        g.setColour(GrainColours::kAccent.withAlpha(0.5f));
+        g.drawRoundedRectangle(0.0f, 0.0f, static_cast<float>(width), 
+                               static_cast<float>(height), 2.0f, 1.0f);
+    }
+}
+
+// Optional: Style the text
+juce::Font GrainLookAndFeel::getLabelFont(juce::Label& label) override
+{
+    return juce::Font(juce::FontOptions().withHeight(14.0f));
+}
+```
+
+**Acceptance criteria:**
+- [ ] Value fields appear as static text by default
+- [ ] Double-click activates edit mode
+- [ ] Text is selected on edit activation
+- [ ] Enter confirms value
+- [ ] Escape cancels edit
+- [ ] Invalid values are clamped
+- [ ] Subtle outline appears only during editing
+
+---
+
+### Subtask 3: Vertical Segmented Meters with Peak Hold
+
+**Objective:** Replace placeholder meters with vertical LED-style segmented meters including peak hold.
+
+**Files to modify:**
+- `Source/PluginEditor.h`
+- `Source/PluginEditor.cpp`
+
+**Meter Design Spec (from JSX):**
+
+| Element | Value |
+|---------|-------|
+| Segments per channel | 32 |
+| Segment width | 8 px |
+| Segment height | 7 px |
+| Gap between segments | ~2 px |
+| Gap between L/R | 4 px |
+| Background | #1a1a1a rounded rect |
+| Padding | 8 px |
+
+**Color Zones:**
+
+| Zone | Segment range | Color |
+|------|---------------|-------|
+| Green | 0 - 75% (segments 0-23) | #22c55e |
+| Yellow | 75 - 90% (segments 24-28) | #eab308 |
+| Red | 90 - 100% (segments 29-31) | #ef4444 |
+| Off | — | #3a3a3a |
+
+**Peak Hold Spec:**
+
+| Phase | Duration | Behavior |
+|-------|----------|----------|
+| Capture | Instant | When new peak exceeds current, update immediately |
+| Hold | ~1 second | Peak segment stays illuminated (30 frames at 30 FPS) |
+| Decay | Gradual | Multiply by 0.95 each frame after hold expires |
+
+**Implementation:**
+
+```cpp
+// In PluginEditor.h
 struct PeakHold
 {
     float peakLevel = 0.0f;
-    int holdCounter = 0;  // frames remaining at 30 FPS
-
+    int holdCounter = 0;
+    
     void update(float newLevel)
     {
         if (newLevel >= peakLevel)
         {
             peakLevel = newLevel;
-            holdCounter = 30;  // ~1 second at 30 FPS
+            holdCounter = 30;  // ~1s at 30 FPS
         }
         else if (holdCounter > 0)
         {
@@ -150,155 +321,302 @@ struct PeakHold
         }
         else
         {
-            peakLevel *= 0.95f;  // Fade after hold
+            peakLevel *= 0.95f;  // Gradual decay
         }
     }
+    
+    void reset()
+    {
+        peakLevel = 0.0f;
+        holdCounter = 0;
+    }
+};
+
+// Members
+PeakHold peakHoldInL, peakHoldInR;
+PeakHold peakHoldOutL, peakHoldOutR;
+juce::Rectangle<int> inputMeterBounds;
+juce::Rectangle<int> outputMeterBounds;
+
+// In PluginEditor.cpp
+void GrainAudioProcessorEditor::timerCallback()
+{
+    // Get current levels from processor
+    float inL = audioProcessor.getInputLevelL();
+    float inR = audioProcessor.getInputLevelR();
+    float outL = audioProcessor.getOutputLevelL();
+    float outR = audioProcessor.getOutputLevelR();
+    
+    // Update peak hold
+    peakHoldInL.update(inL);
+    peakHoldInR.update(inR);
+    peakHoldOutL.update(outL);
+    peakHoldOutR.update(outR);
+    
+    // Only repaint meter areas (optimization)
+    repaint(inputMeterBounds);
+    repaint(outputMeterBounds);
+}
+
+void GrainAudioProcessorEditor::drawMeter(juce::Graphics& g,
+                                           juce::Rectangle<int> bounds,
+                                           float levelL, float levelR,
+                                           float peakL, float peakR)
+{
+    const int numSegments = 32;
+    const int segmentWidth = 8;
+    const int segmentHeight = 7;
+    const int segmentGap = 2;
+    const int channelGap = 4;
+    const int padding = 8;
+    
+    // Draw background
+    g.setColour(GrainColours::kSurface);
+    g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
+    
+    // Calculate positions
+    int totalChannelWidth = segmentWidth * 2 + channelGap;
+    int startX = bounds.getCentreX() - totalChannelWidth / 2;
+    
+    auto drawChannel = [&](int x, float level, float peak)
+    {
+        int litSegments = static_cast<int>(level * numSegments);
+        int peakSegment = juce::jmax(0, static_cast<int>(peak * numSegments) - 1);
+        
+        for (int i = 0; i < numSegments; ++i)
+        {
+            // Bottom to top
+            int y = bounds.getBottom() - padding - (i + 1) * (segmentHeight + segmentGap);
+            bool isLit = i < litSegments;
+            bool isPeak = (i == peakSegment) && (peak > level) && (peak > 0.01f);
+            
+            juce::Colour colour;
+            float position = static_cast<float>(i) / numSegments;
+            
+            if (!isLit && !isPeak)
+            {
+                colour = GrainColours::kMeterOff;
+            }
+            else if (position > 0.9f)
+            {
+                colour = GrainColours::kMeterRed;
+            }
+            else if (position > 0.75f)
+            {
+                colour = GrainColours::kMeterYellow;
+            }
+            else
+            {
+                colour = GrainColours::kMeterGreen;
+            }
+            
+            // Peak hold with reduced alpha to differentiate
+            if (isPeak && !isLit)
+                colour = colour.withAlpha(0.6f);
+            
+            g.setColour(colour);
+            g.fillRoundedRectangle(static_cast<float>(x), static_cast<float>(y),
+                                   static_cast<float>(segmentWidth), 
+                                   static_cast<float>(segmentHeight), 1.0f);
+        }
+    };
+    
+    drawChannel(startX, levelL, peakL);
+    drawChannel(startX + segmentWidth + channelGap, levelR, peakR);
+}
+```
+
+**Acceptance criteria:**
+- [ ] Meters display vertically (bottom to top)
+- [ ] 32 segments per channel, L and R visible
+- [ ] Green/yellow/red color zones correct
+- [ ] Inactive segments visible (dark gray)
+- [ ] Peak hold segment stays lit ~1 second
+- [ ] Peak decays gradually after hold
+- [ ] Only meter bounds repainted each frame (optimization)
+- [ ] Responds correctly to audio levels
+
+---
+
+### Subtask 4: Bypass Button (LED Style)
+
+**Objective:** Style bypass as circular LED button per JSX mockup.
+
+**Files to modify:**
+- `Source/PluginEditor.cpp`
+- `Source/UI/GrainLookAndFeel.cpp`
+
+**Design Spec:**
+
+| State | Background | Icon color | Shadow |
+|-------|------------|------------|--------|
+| Processing (bypass=false) | #d97706 | white | glow |
+| Bypassed (bypass=true) | #1a1a1a | #666666 | inset |
+
+**Size:** 40 × 40 px circular
+
+**Implementation:**
+
+```cpp
+void GrainLookAndFeel::drawButtonBackground(juce::Graphics& g,
+                                             juce::Button& button,
+                                             const juce::Colour& backgroundColour,
+                                             bool isMouseOver, bool isButtonDown) override
+{
+    auto bounds = button.getLocalBounds().toFloat();
+    
+    if (button.getName() == "bypass")
+    {
+        bool isOn = button.getToggleState();  // true = bypassed
+        
+        // Background
+        g.setColour(isOn ? GrainColours::kBypassOff : GrainColours::kBypassOn);
+        g.fillEllipse(bounds);
+        
+        // Glow when processing
+        if (!isOn)
+        {
+            g.setColour(GrainColours::kAccent.withAlpha(0.3f));
+            g.drawEllipse(bounds.expanded(2.0f), 4.0f);
+        }
+        
+        return;
+    }
+    
+    // Default button rendering...
+}
+```
+
+**Acceptance criteria:**
+- [ ] Bypass button is circular
+- [ ] Orange when processing, dark when bypassed
+- [ ] Power icon visible and correctly colored
+- [ ] Click toggles state
+- [ ] UI opacity reduces to 40% when bypassed
+
+---
+
+### Subtask 5: Focus Selector (3-way Switch)
+
+**Objective:** Implement Focus as 3 grouped buttons (Opción A).
+
+**Design Spec:**
+
+```
+┌─────────────────────────────────┐
+│  LOW  │  MID  │  HIGH │        │
+└─────────────────────────────────┘
+```
+
+| Element | Value |
+|---------|-------|
+| Container bg | #1a1a1a |
+| Container padding | 3 px |
+| Button padding | 5px vertical, 14px horizontal |
+| Active bg | #d97706 |
+| Active text | #ffffff |
+| Inactive bg | transparent |
+| Inactive text | #888888 |
+| Border radius | 4 px (buttons), 8 px (container) |
+
+**Implementation (3 TextButtons with radio behavior):**
+
+```cpp
+// In PluginEditor.h
+juce::TextButton focusLowButton{"LOW"};
+juce::TextButton focusMidButton{"MID"};
+juce::TextButton focusHighButton{"HIGH"};
+
+// In constructor
+auto updateFocusButtons = [this](int selected)
+{
+    focusLowButton.setToggleState(selected == 0, juce::dontSendNotification);
+    focusMidButton.setToggleState(selected == 1, juce::dontSendNotification);
+    focusHighButton.setToggleState(selected == 2, juce::dontSendNotification);
+};
+
+focusLowButton.onClick = [this, updateFocusButtons] {
+    // Assuming focus parameter normalized 0-1 maps to 0,1,2
+    focusParam->setValueNotifyingHost(0.0f);
+    updateFocusButtons(0);
+};
+focusMidButton.onClick = [this, updateFocusButtons] {
+    focusParam->setValueNotifyingHost(0.5f);
+    updateFocusButtons(1);
+};
+focusHighButton.onClick = [this, updateFocusButtons] {
+    focusParam->setValueNotifyingHost(1.0f);
+    updateFocusButtons(2);
 };
 ```
 
 **Acceptance criteria:**
-- [ ] Meters render with segmented bars (not solid fill)
-- [ ] Green/yellow/red color zones correct
-- [ ] Peak hold visible on transient material (~1s hold)
-- [ ] Silent state shows dark segments (not blank)
-- [ ] `timerCallback()` only repaints meter bounds (not full editor)
-- [ ] CPU usage same or lower than Phase A
-- [ ] No visual glitches on rapid level changes
+- [ ] Three buttons in horizontal row
+- [ ] Only one can be selected at a time
+- [ ] Selected button is orange with white text
+- [ ] Unselected buttons have gray text on dark bg
+- [ ] Connected to Focus parameter via APVTS
+- [ ] Syncs when parameter changes from DAW automation
 
 ---
 
-### Subtask 3: LED Bypass Indicator
+### Subtask 6: Layout & Polish
 
-**Objective:** Replace the `TextButton` bypass toggle with a visual LED indicator.
+**Objective:** Implement exact layout from JSX mockup and final polish.
 
-**Files to modify:**
-- `Source/PluginEditor.h` — Replace or wrap bypass button with LED component
-- `Source/PluginEditor.cpp` — Implement LED drawing and bypass connection
-- `Source/GrainColours.h` — Add `kLedGreen`, `kLedRed` (if not added in Subtask 1)
-
-**Scope:**
-
-| State | Visual |
-|-------|--------|
-| Active (processing) | Green LED dot + "ON" label |
-| Bypassed | Red/dim LED dot + "BYPASS" label |
-| Transition | Smooth color interpolation (~100ms) |
-
-Still connected to the `bypass` `AudioParameterBool` via APVTS `ButtonAttachment`.
-
-**Color additions:**
+**Layout Implementation:**
 
 ```cpp
-inline const juce::Colour kLedGreen{0xff4ade80};   // Bypass LED on
-inline const juce::Colour kLedRed{0xffef4444};      // Bypass LED off
-```
-
-**Acceptance criteria:**
-- [ ] LED shows green dot when processing (bypass = false)
-- [ ] LED shows red/dim dot when bypassed (bypass = true)
-- [ ] Clicking toggles state (same APVTS connection)
-- [ ] Transition is smooth (no hard pop)
-- [ ] Label text changes: "ON" / "BYPASS"
-
----
-
-### Subtask 4: Header + Footer Polish
-
-**Objective:** Add subtle visual refinement to the header and footer areas.
-
-**Files to modify:**
-- `Source/PluginEditor.cpp` — Update `paint()` for header/footer areas
-- `Source/GrainColours.h` — Add `kSurfaceLight` if needed
-
-**Scope:**
-
-**Header:**
-
-| Element | Current (Phase A) | Phase B |
-|---------|-------------------|---------|
-| Title | `drawText("GRAIN")` 24pt bold | Custom font weight, letter-spacing |
-| Background | Flat `kSurface` fill | Subtle gradient (top: slightly lighter) |
-| Separator | None | 1px line at bottom, `kAccentDim` |
-
-**Footer:**
-
-| Element | Current (Phase A) | Phase B |
-|---------|-------------------|---------|
-| Background | Flat `kSurface` fill | Match header treatment |
-| Separator | None | 1px line at top, `kAccentDim` |
-
-**Color additions (if needed):**
-
-```cpp
-inline const juce::Colour kSurfaceLight{0xff3c3836};  // Hover/highlight, gradient top
-```
-
-**Acceptance criteria:**
-- [ ] Header has subtle gradient background
-- [ ] 1px separator at header bottom (kAccentDim)
-- [ ] 1px separator at footer top (kAccentDim)
-- [ ] Footer gradient matches header style
-- [ ] Title text visually refined
-- [ ] No layout changes (same pixel dimensions)
-
----
-
-### Subtask 5: Standalone Transport & Waveform Polish
-
-**Objective:** Apply consistent visual styling to the standalone-specific transport bar and waveform display.
-
-**Files to modify:**
-- `Source/Standalone/TransportBar.cpp` — Visual polish (buttons styled via LookAndFeel, progress bar, separators)
-- `Source/Standalone/WaveformDisplay.cpp` — Grid lines, refined colors, empty state text
-
-**Scope:**
-
-**Transport bar:**
-
-| Element | Current | Phase B |
-|---------|---------|---------|
-| Buttons | Default `TextButton` | Styled via `GrainLookAndFeel` — rounded, hover states |
-| Progress bar | Basic painted rect | Rounded track, `kAccent` fill |
-| Time display | Plain `drawText` | Monospaced font, consistent sizing |
-| Background | Flat `kBackground` | Subtle separator line at top |
-
-**Waveform display:**
-
-| Element | Current | Phase B |
-|---------|---------|---------|
-| Dry waveform | Semi-transparent default | `kText` at 30% opacity |
-| Wet waveform | Solid columns | `kAccent` at 60% opacity |
-| Cursor | Vertical line | `kTextBright`, 1px |
-| Background | Flat black | `kBackground` with subtle grid lines (0dB and time markers) |
-| Empty state | Blank | "Drop audio file here" text, centered, `kText` at 40% opacity |
-
-**Acceptance criteria:**
-- [ ] Transport buttons render with rounded LookAndFeel style
-- [ ] Progress bar has rounded track
-- [ ] Time display uses monospaced font
-- [ ] Waveform has grid lines at 0dB reference
-- [ ] Empty waveform shows "Drop audio file here" hint
-- [ ] Dry/wet waveform colors match spec
-- [ ] All standalone functionality still works (play, stop, seek, loop, export, drag & drop)
-
----
-
-## Color Palette (Phase B Additions)
-
-Keep existing `GrainColours` namespace. Add only what is needed:
-
-```cpp
-namespace GrainColours
+void GrainAudioProcessorEditor::resized()
 {
-    // Existing 9 colors (unchanged)
-    // ...
-
-    // Phase B additions
-    inline const juce::Colour kSurfaceLight{0xff3c3836};  // Hover/highlight, gradient
-    inline const juce::Colour kLedGreen{0xff4ade80};      // Bypass LED on
-    inline const juce::Colour kLedRed{0xffef4444};        // Bypass LED off
+    auto bounds = getLocalBounds();
+    
+    // Header: 60px
+    auto headerArea = bounds.removeFromTop(60);
+    // Title left, bypass right
+    
+    // Main area
+    auto mainArea = bounds.removeFromTop(280);
+    
+    // Three columns
+    auto leftColumn = mainArea.removeFromLeft(100);   // IN meter
+    auto rightColumn = mainArea.removeFromRight(100); // OUT meter
+    auto centerColumn = mainArea;                      // Knobs + Focus
+    
+    // Store meter bounds for optimized repaint
+    inputMeterBounds = leftColumn.reduced(10);
+    outputMeterBounds = rightColumn.reduced(10);
+    
+    // Center: GRAIN + WARM row, FOCUS row
+    auto knobRow = centerColumn.removeFromTop(160);
+    auto focusRow = centerColumn.removeFromTop(50);
+    
+    // Footer knob row: INPUT | MIX | OUTPUT
+    auto footerKnobArea = bounds.removeFromTop(100);
+    
+    // Actual footer: version + copyright
+    auto footerArea = bounds;
 }
 ```
+
+**Header:**
+- Title: "GRAIN" — bold, #1a1a1a
+- Subtitle: "MICRO-HARMONIC SATURATION" — tracking-wide, #4a4a4a
+- Bypass button: right-aligned
+
+**Footer:**
+- Border top: 1px line, rgba(0,0,0,0.1)
+- Left: "v1.0.0"
+- Right: "Sergio Brocos © 2025"
+- Text color: #4a4a4a
+
+**Acceptance criteria:**
+- [ ] Layout matches JSX mockup proportions
+- [ ] Meters on left and right edges, vertical
+- [ ] GRAIN and WARM centered and large
+- [ ] FOCUS selector centered below main knobs
+- [ ] INPUT, MIX, OUTPUT in bottom row
+- [ ] Footer with separator, version, and copyright
 
 ---
 
@@ -306,107 +624,77 @@ namespace GrainColours
 
 | File | Action | Subtask |
 |------|--------|---------|
-| `Source/UI/GrainLookAndFeel.h` | Create | 1 |
-| `Source/UI/GrainLookAndFeel.cpp` | Create | 1 |
-| `Source/GrainColours.h` | Modify | 1, 3, 4 |
-| `Source/PluginEditor.h` | Modify | 1, 2, 3 |
-| `Source/PluginEditor.cpp` | Modify | 1, 2, 3, 4 |
-| `Source/Standalone/TransportBar.cpp` | Modify | 5 |
-| `Source/Standalone/WaveformDisplay.cpp` | Modify | 5 |
+| `Source/UI/GrainLookAndFeel.h` | Create | 1, 2, 4 |
+| `Source/UI/GrainLookAndFeel.cpp` | Create | 1, 2, 4 |
+| `Source/GrainColours.h` | Modify | 1 |
+| `Source/PluginEditor.h` | Modify | 2, 3, 5, 6 |
+| `Source/PluginEditor.cpp` | Modify | 1, 2, 3, 4, 5, 6 |
 | `GRAIN.jucer` | Modify | 1 |
-| `GRAINTests.jucer` | Modify | 1 |
 
 ---
 
-## Acceptance Criteria (Global)
+## Global Acceptance Criteria
 
 ### Visual
-- [ ] Custom knobs render correctly (arc + dot indicator)
-- [ ] Big knobs visually larger than small knobs
-- [ ] Segmented meters with green/yellow/red zones
-- [ ] Peak hold visible on transient material
-- [ ] LED bypass indicator toggles between green and red/dim
-- [ ] Header and footer have subtle gradients and separators
-- [ ] Focus selector styled consistently
-- [ ] Standalone transport buttons styled (rounded, hover states)
-- [ ] Standalone waveform has grid lines and empty state text
-- [ ] All text legible at native window size
+- [ ] Dot-style knobs with correct sizes (L/M/S)
+- [ ] Dot arc opening at bottom (standard orientation)
+- [ ] Vertical segmented meters with color zones
+- [ ] Peak hold visible (~1s hold, then decay)
+- [ ] Circular bypass button with LED behavior
+- [ ] 3-way Focus switch (radio buttons)
+- [ ] Editable value fields (double-click to edit)
+- [ ] Layout matches JSX mockup
+- [ ] All text legible
 
-### Functionality (No Regressions)
-- [ ] All 7 parameters still connected and functional
-- [ ] Meters still respond to audio
-- [ ] Bypass still works
-- [ ] Standalone file player, transport, waveform, export all work
-- [ ] Drag & drop still works
-- [ ] No clicks or artifacts from UI changes
+### Functionality
+- [ ] All 6 parameters + bypass functional
+- [ ] Meters respond to audio with peak hold
+- [ ] Bypass dims UI to 40% opacity
+- [ ] Value fields accept typed input
+- [ ] No clicks or artifacts
 
 ### Performance
-- [ ] Meter repaint restricted to meter bounds (not full editor)
-- [ ] CPU usage same or lower than Phase A
-- [ ] pluginval still passes
-- [ ] All unit tests pass (95)
+- [ ] Meter repaint optimized (bounds only)
+- [ ] CPU usage ≤ Phase A
+- [ ] pluginval passes
+- [ ] All unit tests pass
 
-### Quality
-- [ ] No deprecation warnings (JUCE 8 FontOptions API)
-- [ ] No new compiler warnings
-- [ ] clang-format clean
+---
+
+## Design Decisions (Confirmed)
+
+| Decision | Value | Justification |
+|----------|-------|---------------|
+| Oversample exposed | **No** | Keep internal per documentation, "safe" philosophy |
+| WARM vs WARMTH | **WARM** | More compact visually |
+| Focus implementation | **3 TextButtons** | Better UX than ComboBox for 3 options |
+| Peak hold | **Yes** | Standard in pro plugins, useful for mixing |
+| Editable values | **Yes** | Precision for advanced users |
+| Tooltips | **No** | No clear content to add |
 
 ---
 
 ## Testing Checklist
 
 ```bash
-# 1. Build VST3
+# Build
 xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - VST3" -configuration Debug build
 
-# 2. Build Standalone
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - Standalone Plugin" -configuration Debug build
-
-# 3. Run unit tests
+# Tests
 ./scripts/run_tests.sh
 
-# 4. Run pluginval
-/Applications/pluginval.app/Contents/MacOS/pluginval \
-  --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# Validation
+pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
-# 5. Visual verification in DAW (Logic Pro / Ableton)
-# - Verify knobs, meters, bypass, labels render correctly
-# - Automate parameters — verify smooth visual response
-# - Resize host window — verify no layout glitches
-
-# 6. Visual verification in Standalone
-# - Open file, play, verify waveform + transport styling
-# - Drag & drop file, verify border feedback
-# - Export, verify transport bar states
+# Visual verification in DAW
+# - Check all knob sizes and styling
+# - Verify meter animation and peak hold
+# - Test bypass toggle and UI dimming
+# - Double-click value fields to edit
+# - Automate parameters, verify sync
 ```
 
 ---
 
-## Branching Strategy
-
-```
-main
- └── feature/010-custom-ui                      ← main task branch
-      ├── feature/010-custom-ui/001-lookandfeel  ← subtask 1
-      ├── feature/010-custom-ui/002-meters       ← subtask 2
-      ├── feature/010-custom-ui/003-bypass-led   ← subtask 3
-      ├── feature/010-custom-ui/004-header-footer ← subtask 4
-      └── feature/010-custom-ui/005-standalone   ← subtask 5
-```
-
-Each subtask branch merges into `feature/010-custom-ui` via PR.
-Final PR goes from `feature/010-custom-ui` → `main`.
-
----
-
-## Out of Scope
-
-- Custom fonts / embedded typefaces (use system fonts)
-- Animations beyond LED transition and peak hold fade
-- Resizable window / scalable UI
-- Bitmap/SVG assets
-- Tooltip popups
-- Preset browser UI
-- A/B switch UI
+*Revised based on GrainUI.jsx mockup — GRAIN TFM Project*

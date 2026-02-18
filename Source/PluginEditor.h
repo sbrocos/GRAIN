@@ -18,6 +18,7 @@
 #include "Standalone/FilePlayerSource.h"
 #include "Standalone/TransportBar.h"
 #include "Standalone/WaveformDisplay.h"
+#include "UI/GrainLookAndFeel.h"
 
 #include <JuceHeader.h>
 
@@ -67,6 +68,7 @@ private:
     void setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight, const juce::String& suffix = {});
     void setupLabel(juce::Label& label);
 
+    GrainLookAndFeel grainLookAndFeel;
     GRAINAudioProcessor& processor;
 
     // Main controls (creative — big knobs)
@@ -84,7 +86,7 @@ private:
 
     // Labels
     juce::Label grainLabel{{}, "GRAIN"};
-    juce::Label warmthLabel{{}, "WARMTH"};
+    juce::Label warmthLabel{{}, "WARM"};
     juce::Label inputLabel{{}, "INPUT"};
     juce::Label mixLabel{{}, "MIX"};
     juce::Label focusLabel{{}, "FOCUS"};
