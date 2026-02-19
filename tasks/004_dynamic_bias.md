@@ -261,7 +261,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 # 4. Verify all previous 15 tests + new 11 tests pass
 
 # 5. Run format check
-./scripts/format.sh fix
+./scripts/format fix
 ```
 
 ---
