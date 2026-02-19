@@ -8,8 +8,7 @@ const GrainUI = () => {
     mix: 15,
     output: 0,
     focus: 'mid',
-    bypass: false,
-    oversample: null
+    bypass: false
   });
 
   const [meters, setMeters] = useState({ inL: 0.55, inR: 0.52, outL: 0.58, outR: 0.54 });
@@ -31,7 +30,7 @@ const GrainUI = () => {
   };
 
   // Simple dot-style knob like the reference image
-  const Knob = ({ label, value, min, max, unit = '', onChange, size = 'normal' }) => {
+  const Knob = ({ label, value, min, max, unit = '', onChange, size = 'normal', labelGap = 4 }) => {
     const range = max - min;
     const normalized = (value - min) / range;
     const angle = -135 + normalized * 270;
@@ -44,14 +43,14 @@ const GrainUI = () => {
     return (
       <div className="flex flex-col items-center">
         {/* Label on top */}
-        <span 
-          className="text-sm font-bold tracking-wide mb-1"
-          style={{ color: '#1a1a1a' }}
+        <span
+          className="text-sm tracking-wide"
+          style={{ color: '#1a1a1a', fontFamily: 'Inter, sans-serif', fontWeight: 500, marginBottom: labelGap }}
         >
           {label}
         </span>
-        
-        <div 
+
+        <div
           className="relative cursor-pointer"
           style={{ width: knobSize + 30, height: knobSize + 30 }}
         >
@@ -154,10 +153,10 @@ const GrainUI = () => {
     const labels = ['LOW', 'MID', 'HIGH'];
     
     return (
-      <div className="flex flex-col items-center">
-        <span 
-          className="text-sm font-bold tracking-wide mb-1"
-          style={{ color: '#1a1a1a' }}
+      <div className="flex flex-col items-center mt-6">
+        <span
+          className="text-sm tracking-wide mb-1"
+          style={{ color: '#1a1a1a', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
         >
           FOCUS
         </span>
@@ -177,7 +176,8 @@ const GrainUI = () => {
               style={{
                 backgroundColor: value === opt ? '#d97706' : 'transparent',
                 color: value === opt ? '#ffffff' : '#888888',
-                borderRadius: 4
+                borderRadius: 4,
+                fontFamily: 'Inter, sans-serif'
               }}
             >
               {labels[i]}
@@ -230,8 +230,8 @@ const GrainUI = () => {
     return (
       <div className="flex flex-col items-center gap-1">
         <span
-          className="text-sm font-bold tracking-wide mb-1"
-          style={{ color: '#1a1a1a' }}
+          className="text-sm tracking-wide mb-1"
+          style={{ color: '#1a1a1a', fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
         >
           {label}
         </span>
@@ -277,7 +277,7 @@ const GrainUI = () => {
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-8"
-      style={{ backgroundColor: '#8a9a91' }}
+      style={{ backgroundColor: '#323232' }}
     >
       <div 
         className="relative rounded-2xl p-6"
@@ -288,21 +288,21 @@ const GrainUI = () => {
             0 0 0 1px rgba(0,0,0,0.1),
             inset 0 1px 0 rgba(255,255,255,0.3)
           `,
-          minWidth: 480
+          width: 580
         }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 
-              className="text-3xl font-black tracking-tight"
-              style={{ color: '#1a1a1a' }}
+            <h1
+              className="text-3xl tracking-tight"
+              style={{ color: '#1a1a1a', fontFamily: 'Inter, sans-serif', fontWeight: 900, fontStyle: 'italic' }}
             >
               GRAIN
             </h1>
-            <p 
-              className="text-xs tracking-widest font-medium"
-              style={{ color: '#4a4a4a' }}
+            <p
+              className="text-xs tracking-widest"
+              style={{ color: '#4a4a4a', fontFamily: 'Inter, sans-serif', fontWeight: 400, fontStyle: 'italic' }}
             >
               MICRO-HARMONIC SATURATION
             </p>
@@ -331,7 +331,7 @@ const GrainUI = () => {
             {/* Center column: GRAIN + WARM / FOCUS / oversample */}
             <div className="flex-1 flex flex-col items-center gap-3">
               {/* Row 1: GRAIN + WARM */}
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center" style={{ gap: 20 }}>
                 <Knob
                   label="GRAIN"
                   value={params.grain}
@@ -357,34 +357,6 @@ const GrainUI = () => {
                 value={params.focus}
                 onChange={(v) => updateParam('focus', v)}
               />
-
-              {/* Row 2b: Oversample buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateParam('oversample', params.oversample === '2x' ? null : '2x')}
-                  className="text-xs font-bold tracking-wider transition-all duration-150"
-                  style={{
-                    background: params.oversample === '2x' ? '#d97706' : '#1a1a1a',
-                    color: params.oversample === '2x' ? '#ffffff' : '#888888',
-                    borderRadius: 999,
-                    padding: '5px 14px',
-                  }}
-                >
-                  2X
-                </button>
-                <button
-                  onClick={() => updateParam('oversample', params.oversample === '4x' ? null : '4x')}
-                  className="text-xs font-bold tracking-wider transition-all duration-150"
-                  style={{
-                    background: params.oversample === '4x' ? '#d97706' : '#1a1a1a',
-                    color: params.oversample === '4x' ? '#ffffff' : '#888888',
-                    borderRadius: 999,
-                    padding: '5px 14px',
-                  }}
-                >
-                  4X
-                </button>
-              </div>
             </div>
 
             {/* Right column: OUT meter */}
@@ -400,9 +372,10 @@ const GrainUI = () => {
 
           {/* Bottom row: INPUT / MIX / OUTPUT knobs aligned */}
           <div className="flex items-start justify-between mt-3">
-            <div style={{ minWidth: 100 }} className="flex justify-center">
+            <div style={{ minWidth: 100 }} className="flex justify-center mb-3">
               <Knob
                 label="INPUT"
+                labelGap= {12}
                 value={params.input}
                 min={-12}
                 max={12}
@@ -422,6 +395,7 @@ const GrainUI = () => {
             <div style={{ minWidth: 100 }} className="flex justify-center">
               <Knob
                 label="OUTPUT"
+                labelGap= {12}
                 value={params.output}
                 min={-12}
                 max={12}

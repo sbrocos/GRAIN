@@ -16,7 +16,7 @@
 
 namespace
 {
-constexpr int kEditorWidth = 480;
+constexpr int kEditorWidth = 580;
 constexpr int kWebViewHeight = 480;
 constexpr int kTransportBarHeight = 50;  // standalone transport bar
 constexpr int kWaveformHeight = 120;     // standalone waveform display
@@ -33,6 +33,8 @@ static const char* getMimeForExtension(const juce::String& extension)
         return "text/javascript";
     if (extension == "css")
         return "text/css";
+    if (extension == "ttf")
+        return "font/ttf";
     return "application/octet-stream";
 }
 
@@ -146,12 +148,16 @@ std::optional<juce::WebBrowserComponent::Resource> GRAINAudioProcessorEditor::ge
         int size;
     };
 
-    // BinaryData names: Projucer converts hyphens → underscores, dots → underscores
+    // BinaryData names: Projucer converts hyphens/dots → underscores
     // e.g., "grain-ui.js" → BinaryData::grainui_js
     static const std::unordered_map<std::string, ResourceEntry> resources = {
         {"index.html", {BinaryData::index_html, BinaryData::index_htmlSize}},
         {"grain-ui.js", {BinaryData::grainui_js, BinaryData::grainui_jsSize}},
-        {"grain-ui.css", {BinaryData::grainui_css, BinaryData::grainui_cssSize}}};
+        {"grain-ui.css", {BinaryData::grainui_css, BinaryData::grainui_cssSize}},
+        {"Inter-Regular.ttf", {BinaryData::InterRegular_ttf, BinaryData::InterRegular_ttfSize}},
+        {"Inter-RegularItalic.ttf", {BinaryData::InterRegularItalic_ttf, BinaryData::InterRegularItalic_ttfSize}},
+        {"Inter-ExtraBoldItalic.ttf",
+         {BinaryData::InterExtraBoldItalic_ttf, BinaryData::InterExtraBoldItalic_ttfSize}}};
 
     auto it = resources.find(path.toStdString());
 

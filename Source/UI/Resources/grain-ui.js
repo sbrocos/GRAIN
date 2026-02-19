@@ -205,11 +205,13 @@ class DotKnob {
      * @param {string} config.label       - Display label
      * @param {string} config.size        - "large", "medium", or "normal"
      * @param {function} config.displayFn - (scaledValue) => string
+     * @param {number} config.labelGap   - gap below label in px (default: 4)
      */
     constructor(container, config) {
         this.container = container;
         this.config = config;
         this.size = config.size || "normal";
+        this.labelGap = config.labelGap || 4;
 
         var sizeMap = {
             large:  { knob: 120, dots: 35, dotR: 3, indicator: 11, indicatorTop: 14 },
@@ -240,7 +242,7 @@ class DotKnob {
 
         // Label
         var label = document.createElement("span");
-        label.className = "knob-label";
+        label.className = "knob-label " + (this.labelGap > 4 ? "gap-large" : "gap-default");
         label.textContent = this.config.label;
         el.appendChild(label);
 
@@ -583,6 +585,7 @@ document.addEventListener("DOMContentLoaded", function() {
         relayName: "inputSlider",
         label: "INPUT",
         size: "normal",
+        labelGap: 12,
         displayFn: function(v) {
             var s = v >= 0 ? "+" + v.toFixed(1) : v.toFixed(1);
             return s + " dB";
@@ -600,6 +603,7 @@ document.addEventListener("DOMContentLoaded", function() {
         relayName: "outputSlider",
         label: "OUTPUT",
         size: "normal",
+        labelGap: 12,
         displayFn: function(v) {
             var s = v >= 0 ? "+" + v.toFixed(1) : v.toFixed(1);
             return s + " dB";

@@ -59,6 +59,14 @@
           <FILE id="GrainUiCss" name="grain-ui.css" compile="0"
                 resource="1" file="Source/UI/Resources/grain-ui.css"/>
         </GROUP>
+        <GROUP id="{E3F4A5B6-C7D8-9012-EFAB-CD3456789012}" name="Fonts">
+          <FILE id="InterRegularTtf" name="Inter-Regular.ttf" compile="0"
+                resource="1" file="Source/Fonts/Inter-Regular.ttf"/>
+          <FILE id="InterRegularItalicTtf" name="Inter-RegularItalic.ttf" compile="0"
+                resource="1" file="Source/Fonts/Inter-RegularItalic.ttf"/>
+          <FILE id="InterExtraBoldItalicTtf" name="Inter-ExtraBoldItalic.ttf" compile="0"
+                resource="1" file="Source/Fonts/Inter-ExtraBoldItalic.ttf"/>
+        </GROUP>
       </GROUP>
       <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
