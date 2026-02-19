@@ -92,6 +92,8 @@ private:
     {
         using juce::WebBrowserComponent::WebBrowserComponent;
         bool pageAboutToLoad(const juce::String& newURL) override;
+        void pageFinishedLoading(const juce::String& url) override;
+        bool pageReady = false;
     };
 
     SinglePageBrowser webView;

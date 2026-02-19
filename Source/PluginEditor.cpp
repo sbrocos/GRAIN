@@ -46,6 +46,11 @@ bool GRAINAudioProcessorEditor::SinglePageBrowser::pageAboutToLoad(const juce::S
     return newURL == getResourceProviderRoot();
 }
 
+void GRAINAudioProcessorEditor::SinglePageBrowser::pageFinishedLoading(const juce::String& /*url*/)
+{
+    pageReady = true;
+}
+
 //==============================================================================
 GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     : AudioProcessorEditor(&p)
@@ -417,6 +422,10 @@ void GRAINAudioProcessorEditor::loadFileIntoPlayer(const juce::File& file)
 //==============================================================================
 void GRAINAudioProcessorEditor::timerCallback()
 {
+    // Don't send events until the web page has fully loaded
+    if (!webView.pageReady)
+        return;
+
     // Read atomic meter levels from the audio thread
     float const inL = processor.inputLevelL.load();
     float const inR = processor.inputLevelR.load();
