@@ -34,6 +34,10 @@ public:
                           float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider) override;
 
     //==============================================================================
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
+                              bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+
+    //==============================================================================
     void drawLabel(juce::Graphics& g, juce::Label& label) override;
 
     //==============================================================================
