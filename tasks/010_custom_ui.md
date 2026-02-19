@@ -1,700 +1,457 @@
-# Task 010: Custom UI (Phase B) — Revised
+# TASK 010 — Custom UI from JSX via WebBrowserComponent
 
-## Objective
-
-Replace the functional Phase A editor with a polished custom UI based on the approved JSX mockup. Phase A established structure and connectivity. Phase B adds visual refinement: custom dot-style knobs, vertical segmented meters with peak hold, LED bypass indicator, editable value fields, and consistent typography.
-
-**Reference:** `GrainUI.jsx` (React mockup)
-
-**Constraint:** Visual-only transformation. Same parameters, same DSP.
+**Project:** GRAIN — Micro-harmonic Saturation Processor  
+**Status:** Ready  
+**Priority:** High  
+**Depends on:** TASK 008 (PluginEditor base), TASK 007 (Oversampling integration)  
+**Estimated effort:** 4–6 days
 
 ---
 
-## Design Summary (from JSX Mockup)
+## 1. Goal
 
-### Layout Structure
+Replace the placeholder JUCE native editor (`GrainEditor` with basic sliders) with a polished HTML/CSS/JS UI derived from `GrainUI.jsx`, embedded and served via `juce::WebBrowserComponent`.
+
+The result must be **visually identical to the JSX mockup** (dot-style knobs, VU meters, Focus switch, Bypass button) and **bidirectionally synchronized** with the JUCE parameter system (`APVTS`).
+
+---
+
+## 2. Scope
+
+### 2.1 In scope
+- Embed the HTML/CSS/JS UI as binary resources inside the plugin binary.
+- Render the UI via `juce::WebBrowserComponent` inside `GrainEditor`.
+- Implement a **JS ↔ C++ communication bridge** (defined in §5).
+- Port all visual components from `GrainUI.jsx`:
+  - Dot-style knobs: GRAIN, WARM, INPUT, MIX, OUTPUT
+  - Focus switch: LOW / MID / HIGH
+  - Bypass button (power icon)
+  - VU Meters: IN (L/R) and OUT (L/R), animated
+- Connect knobs/switch/bypass to `APVTS` parameters.
+- Feed real meter levels from the audio thread to the UI via the bridge.
+
+### 2.2 Out of scope (explicit)
+- Oversampling selector (2X / 4X buttons): **removed from UI** — oversampling is internal and not a user decision (per PRD §4.2).
+- Preset system (planned for V1.1).
+- Advanced animations beyond what the JSX already defines.
+
+---
+
+## 3. UI Components Specification
+
+Derived directly from `GrainUI.jsx`. No visual changes required unless noted.
+
+### 3.1 Knobs
+
+| Label  | Param ID     | Range        | Default | Size   | Unit  |
+|--------|--------------|--------------|---------|--------|-------|
+| GRAIN  | `grain`      | 0 – 100      | 25      | large  | %     |
+| WARM   | `warmth`     | -100 – +100  | 0       | large  | %     |
+| INPUT  | `inputGain`  | -12 – +12    | 0       | normal | dB    |
+| MIX    | `mix`        | 0 – 100      | 15      | medium | %     |
+| OUTPUT | `outputGain` | -12 – +12    | 0       | normal | dB    |
+
+Dot ring: 21–35 dots (size-dependent), active dots in `#d97706` (amber), inactive in `#1a1a1a`.  
+Interaction: HTML `<input type="range">` hidden under the knob SVG (as in JSX). No custom drag logic needed in JS.
+
+### 3.2 Focus Switch
+
+Three-segment toggle: LOW / MID / HIGH.  
+Param ID: `focus` (0 = Low, 1 = Mid, 2 = High).  
+Active segment background: `#d97706`. Inactive: transparent on `#1a1a1a` base.
+
+### 3.3 Bypass Button
+
+Circular, power icon (SVG inline).  
+State: active = amber glow (`#d97706`), bypassed = dark (`#1a1a1a`).  
+Does **not** map to an `APVTS` parameter — managed as plugin bypass via `AudioProcessor::setBypass()` or equivalent.
+
+### 3.4 VU Meters
+
+Two pairs (IN L/R, OUT L/R). Each bar: 32 segments, vertical, bottom-to-top.  
+Segment colors:
+- Green `#22c55e` for 0–75%
+- Yellow `#eab308` for 75–90%
+- Red `#ef4444` for 90–100%
+
+Update rate: ~15 ms (driven by bridge events from audio thread — see §5.3).  
+In bypass mode: both meters show near-zero (residual ~5% static level).
+
+### 3.5 Layout
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  GRAIN                                              ⏻       │
-│  MICRO-HARMONIC SATURATION                                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   ▐█▌         GRAIN        WARM          ▐█▌               │
-│   IN          (large)     (large)        OUT               │
-│   ▐█▌           ◉           ◉            ▐█▌               │
-│                                                             │
-│                [ LOW | MID | HIGH ]                         │
-│                      FOCUS                                  │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│   INPUT              MIX              OUTPUT                │
-│   (small)          (medium)          (small)                │
-│     ◉                 ◉                 ◉                   │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  v1.0.0                          Sergio Brocos © 2025       │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────┐
+│  GRAIN        [header + bypass btn]    │
+│  MICRO-HARMONIC SATURATION             │
+├──────────────────────────────────────  │
+│ [IN meter] [GRAIN knob] [WARM knob] [OUT meter] │
+│            [FOCUS switch LOW/MID/HIGH] │
+├────────────────────────────────────────│
+│ [INPUT knob]   [MIX knob]  [OUTPUT knob] │
+├────────────────────────────────────────│
+│  v1.0.0              Sergio Brocos © 2025 │
+└────────────────────────────────────────┘
 ```
 
-### Window Dimensions
-
-| Target | Width | Height |
-|--------|-------|--------|
-| VST3 Plugin | 500 px | 420 px |
-| Standalone | 500 px | 590 px |
+Background: `#B6C1B9` (sage green panel). Outer: `#8a9a91`.
 
 ---
 
-## Prerequisites
+## 4. File Structure
 
-- Task 008 completed (Phase A — functional layout)
-- Task 009b completed (Standalone file player)
-- Approved JSX mockup (`GrainUI.jsx`)
+```
+GRAIN/
+├── Source/
+│   ├── PluginEditor.h          ← hosts WebBrowserComponent
+│   ├── PluginEditor.cpp
+│   └── UI/
+│       ├── GrainWebBridge.h    ← NEW: JS↔C++ bridge interface
+│       ├── GrainWebBridge.cpp
+│       └── Resources/
+│           ├── index.html      ← entry point (inlined or loaded via BinaryData)
+│           ├── grain-ui.js     ← UI logic (ported from JSX, vanilla JS + CSS)
+│           └── grain-ui.css    ← styles (extracted from JSX inline styles)
+└── Resources/                  ← Projucer binary resources
+    └── UI/                     ← (mirrored from Source/UI/Resources)
+```
+
+> **Note on JSX → Vanilla JS:** `GrainUI.jsx` uses React for state management. Since `WebBrowserComponent` renders HTML directly (no React runtime needed), the port replaces:
+> - `useState` → plain JS variables + DOM manipulation
+> - `useEffect` (meter animation) → `setInterval` in JS, data injected via bridge
+> - `Array.from().map()` SVG dots → generated once on init, updated via class toggle
 
 ---
 
-## Color Palette
+## 5. JS ↔ C++ Communication Bridge
 
-Based on JSX mockup. Update `Source/GrainColours.h`:
+This is the most critical architectural decision of the task.
+
+### 5.1 Mechanism: `juce::WebBrowserComponent` Native API (JUCE 7+)
+
+JUCE 7 introduces `WebBrowserComponent::Options` with `withNativeIntegration()` that exposes a native event bus:
 
 ```cpp
-namespace GrainColours
-{
-    // === Background & Surfaces ===
-    inline const juce::Colour kBackground   {0xffB6C1B9};  // Sage green (main bg)
-    inline const juce::Colour kSurface      {0xff1a1a1a};  // Knob body, meters bg
-    inline const juce::Colour kSurfaceLight {0xff3a3a3a};  // Knob ring, inactive dots
-    
-    // === Accent ===
-    inline const juce::Colour kAccent       {0xffd97706};  // Active dots, selected buttons
-    
-    // === Text ===
-    inline const juce::Colour kText         {0xff1a1a1a};  // Labels on light bg
-    inline const juce::Colour kTextDim      {0xff4a4a4a};  // Subtitle, footer
-    inline const juce::Colour kTextBright   {0xffffffff};  // Text on dark bg
-    inline const juce::Colour kTextMuted    {0xff888888};  // Inactive button text
-    
-    // === Meters ===
-    inline const juce::Colour kMeterGreen   {0xff22c55e};  // 0-75%
-    inline const juce::Colour kMeterYellow  {0xffeab308};  // 75-90%
-    inline const juce::Colour kMeterRed     {0xffef4444};  // 90-100%
-    inline const juce::Colour kMeterOff     {0xff3a3a3a};  // Inactive segments
-    
-    // === Bypass LED ===
-    inline const juce::Colour kBypassOn     {0xffd97706};  // Processing (orange)
-    inline const juce::Colour kBypassOff    {0xff1a1a1a};  // Bypassed (dark)
+// C++ side — send event TO the browser
+webComponent.emitEventIfBrowserIsVisible("paramChanged", payloadVar);
+
+// C++ side — receive events FROM the browser
+webComponent.getNativeEventListener().addListener([this](const juce::var& event) {
+    handleBrowserEvent(event);
+});
+```
+
+```js
+// JS side — receive event from C++
+window.__JUCE__.backend.addEventListener("paramChanged", (event) => {
+    updateKnob(event.paramId, event.value);
+});
+
+// JS side — send event to C++
+window.__JUCE__.backend.emitEvent("paramChange", { paramId: "grain", value: 42 });
+```
+
+> ⚠️ **JUCE version check:** Verify that the project's JUCE version supports `WebBrowserComponent::Options::withNativeIntegration()`. If not (JUCE < 7), fall back to the `evaluateJavascript` + URL scheme approach (see §5.4 fallback).
+
+### 5.2 Event Protocol
+
+All events are JSON objects serialized as `juce::var` / `juce::DynamicObject`.
+
+#### C++ → JS Events
+
+| Event name       | Payload                                      | When                          |
+|------------------|----------------------------------------------|-------------------------------|
+| `paramChanged`   | `{ paramId: string, value: number }`         | APVTS listener fires          |
+| `meterUpdate`    | `{ inL: float, inR: float, outL: float, outR: float }` | ~15ms timer in editor  |
+| `bypassChanged`  | `{ bypassed: bool }`                         | Bypass state changes          |
+| `initState`      | Full params snapshot (all 6 + bypass)        | Page load complete            |
+
+#### JS → C++ Events
+
+| Event name       | Payload                                      | Action                        |
+|------------------|----------------------------------------------|-------------------------------|
+| `paramChange`    | `{ paramId: string, value: number }`         | Set APVTS parameter           |
+| `bypassChange`   | `{ bypassed: bool }`                         | Toggle plugin bypass          |
+| `uiReady`        | `{}`                                         | Triggers `initState` send     |
+
+### 5.3 Meter Update Strategy
+
+VU meter levels come from the **audio thread** and must reach the UI safely:
+
+```
+Audio thread → RMS values written to std::atomic<float> (x4)
+                         ↓
+Editor timer (juce::Timer, ~15ms) reads atomics
+                         ↓
+emitEventIfBrowserIsVisible("meterUpdate", payload)
+                         ↓
+JS updates DOM segment colors
+```
+
+This avoids any audio-thread → UI direct calls.
+
+### 5.4 Fallback: JUCE < 7 (evaluateJavascript)
+
+If native integration is unavailable:
+
+```cpp
+// C++ → JS: inject directly
+webComponent.evaluateJavascript("window.grain.onParamChanged('grain', 42)");
+
+// JS → C++: use custom URL scheme
+// JS calls: window.location.href = "grain://paramChange?id=grain&value=42"
+// C++ overrides: bool pageAboutToLoad(const String& url) { parseGrainScheme(url); return false; }
+```
+
+Use this only as fallback — native integration is cleaner and bidirectional.
+
+---
+
+## 6. HTML/JS Porting Guide (JSX → Vanilla)
+
+### 6.1 Knob Component
+
+```js
+// JSX Knob → JS class
+class DotKnob {
+  constructor(container, { label, min, max, defaultValue, unit, size }) {
+    this.value = defaultValue;
+    this.min = min; this.max = max; this.unit = unit;
+    this.dots = []; // SVG circle elements
+    this._buildDOM(container, label, size);
+    this._buildDots();
+    this.setValue(defaultValue);
+  }
+
+  setValue(v) {
+    this.value = v;
+    const norm = (v - this.min) / (this.max - this.min);
+    const angle = -135 + norm * 270;
+    this.knobBody.style.transform = `rotate(${angle}deg)`;
+    const activeDots = Math.round(norm * (this.dots.length - 1));
+    this.dots.forEach((dot, i) => {
+      dot.setAttribute("fill", i <= activeDots ? "#d97706" : "#1a1a1a");
+    });
+    this.valueLabel.textContent = v > 0 && this.unit !== "%" ? `+${v}${this.unit}` : `${v}${this.unit}`;
+  }
+
+  // Input range onChange → emits paramChange event to C++
+  _onInput(e) {
+    const v = parseFloat(e.target.value);
+    this.setValue(v);
+    window.__JUCE__.backend.emitEvent("paramChange", { paramId: this.paramId, value: v });
+  }
 }
 ```
 
+### 6.2 Meter Update
+
+```js
+// Driven by meterUpdate events from C++
+window.__JUCE__.backend.addEventListener("meterUpdate", ({ inL, inR, outL, outR }) => {
+  updateMeterBar(inMeterEl, inL, inR);
+  updateMeterBar(outMeterEl, outL, outR);
+});
+
+function updateMeterBar(el, levelL, levelR) {
+  const segments = 32;
+  el.querySelectorAll(".seg-l").forEach((seg, i) => {
+    seg.style.backgroundColor = getSegColor(i, i < Math.round(levelL * segments), segments);
+  });
+  // same for R channel
+}
+```
+
+### 6.3 Init Handshake
+
+```js
+// On page load
+window.addEventListener("load", () => {
+  window.__JUCE__.backend.emitEvent("uiReady", {});
+});
+
+window.__JUCE__.backend.addEventListener("initState", (state) => {
+  grainKnob.setValue(state.grain);
+  warmKnob.setValue(state.warmth);
+  inputKnob.setValue(state.inputGain);
+  mixKnob.setValue(state.mix);
+  outputKnob.setValue(state.outputGain);
+  focusSwitch.setValue(state.focus);
+  bypassBtn.setState(state.bypassed);
+});
+```
+
 ---
 
-## Subtasks
-
-### Subtask 1: GrainLookAndFeel + Dot-Style Knobs
-
-**Objective:** Create custom `LookAndFeel` with dot-style rotary sliders matching the JSX mockup.
-
-**Files to create:**
-- `Source/UI/GrainLookAndFeel.h`
-- `Source/UI/GrainLookAndFeel.cpp`
-
-**Files to modify:**
-- `Source/PluginEditor.h`
-- `Source/PluginEditor.cpp`
-- `Source/GrainColours.h`
-- `GRAIN.jucer`
-
-**Knob Design Spec (from JSX):**
-
-| Element | Description |
-|---------|-------------|
-| Dot arc | Circle of dots around knob, 270° range, opening at bottom |
-| Active dots | Orange (#d97706), from min to current value |
-| Inactive dots | Dark gray (#1a1a1a) |
-| Knob body | Black circle with subtle gradient (#2a2a2a → #1a1a1a) |
-| Inner ring | 2px border (#3a3a3a), inset 3px |
-| Indicator | White dot on knob face, rotates with value |
-
-**Knob Sizes:**
-
-| Size | Diameter | Dot count | Dot radius | Usage |
-|------|----------|-----------|------------|-------|
-| Large | 120 px | 35 | 3 px | GRAIN, WARM |
-| Medium | 80 px | 24 | 3.5 px | MIX |
-| Small | 60 px | 21 | 3 px | INPUT, OUTPUT |
-
-**Implementation:**
+## 7. C++ Integration in PluginEditor
 
 ```cpp
-void GrainLookAndFeel::drawRotarySlider(
-    juce::Graphics& g, int x, int y, int width, int height,
-    float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
-    juce::Slider& slider) override
+class GrainEditor : public juce::AudioProcessorEditor,
+                    private juce::Timer,
+                    private juce::AudioProcessorValueTreeState::Listener
 {
-    // Determine size category from slider properties or dimensions
-    const bool isLarge = width >= 140;
-    const bool isMedium = width >= 100 && width < 140;
-    
-    const int dotCount = isLarge ? 35 : (isMedium ? 24 : 21);
-    const float dotRadius = isLarge ? 3.0f : (isMedium ? 3.5f : 3.0f);
-    const float knobRadius = isLarge ? 60.0f : (isMedium ? 40.0f : 30.0f);
-    
-    auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat();
-    auto centre = bounds.getCentre();
-    
-    // 1. Draw dot arc (opening at bottom)
-    const float dotArcRadius = knobRadius + 15.0f;
-    for (int i = 0; i < dotCount; ++i)
+public:
+    GrainEditor(GrainProcessor& p)
+        : AudioProcessorEditor(p), processor(p),
+          webView(juce::WebBrowserComponent::Options{}
+                      .withNativeIntegration()
+                      .withEventListener("paramChange",    [this](auto& e) { onParamChange(e); })
+                      .withEventListener("bypassChange",   [this](auto& e) { onBypassChange(e); })
+                      .withEventListener("uiReady",        [this](auto& e) { sendInitState(); }))
     {
-        float proportion = static_cast<float>(i) / static_cast<float>(dotCount - 1);
-        float angle = rotaryStartAngle + proportion * (rotaryEndAngle - rotaryStartAngle);
-        
-        float dotX = centre.x + dotArcRadius * std::cos(angle - juce::MathConstants<float>::halfPi);
-        float dotY = centre.y + dotArcRadius * std::sin(angle - juce::MathConstants<float>::halfPi);
-        
-        bool isActive = proportion <= sliderPos;
-        g.setColour(isActive ? GrainColours::kAccent : GrainColours::kSurface);
-        g.fillEllipse(dotX - dotRadius, dotY - dotRadius, dotRadius * 2.0f, dotRadius * 2.0f);
+        addAndMakeVisible(webView);
+        webView.goToURL(getUIResourceURL());   // loads embedded index.html
+        processor.apvts.addParameterListener("grain",      this);
+        processor.apvts.addParameterListener("warmth",     this);
+        // ... all 5 params
+        startTimerHz(66); // ~15ms for meter updates
+        setSize(480, 520);
     }
-    
-    // 2. Draw knob body with gradient
-    juce::ColourGradient gradient(
-        juce::Colour(0xff2a2a2a), centre.x - knobRadius * 0.5f, centre.y - knobRadius * 0.5f,
-        juce::Colour(0xff1a1a1a), centre.x + knobRadius * 0.5f, centre.y + knobRadius * 0.5f,
-        false);
-    g.setGradientFill(gradient);
-    g.fillEllipse(centre.x - knobRadius, centre.y - knobRadius, knobRadius * 2.0f, knobRadius * 2.0f);
-    
-    // 3. Draw inner ring
-    g.setColour(GrainColours::kSurfaceLight);
-    const float ringInset = 3.0f;
-    g.drawEllipse(centre.x - knobRadius + ringInset, centre.y - knobRadius + ringInset,
-                  (knobRadius - ringInset) * 2.0f, (knobRadius - ringInset) * 2.0f, 2.0f);
-    
-    // 4. Draw indicator dot
-    float indicatorAngle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
-    float indicatorDistance = knobRadius - (isLarge ? 22.0f : (isMedium ? 16.0f : 14.0f));
-    float indX = centre.x + indicatorDistance * std::cos(indicatorAngle - juce::MathConstants<float>::halfPi);
-    float indY = centre.y + indicatorDistance * std::sin(indicatorAngle - juce::MathConstants<float>::halfPi);
-    
-    float indicatorRadius = isLarge ? 5.5f : (isMedium ? 4.0f : 3.5f);
-    g.setColour(juce::Colours::white);
-    g.fillEllipse(indX - indicatorRadius, indY - indicatorRadius, indicatorRadius * 2.0f, indicatorRadius * 2.0f);
-}
-```
 
-**Acceptance criteria:**
-- [ ] All 5 knobs render with dot-style arc
-- [ ] Large knobs (GRAIN, WARM) visibly bigger than small (INPUT, OUTPUT)
-- [ ] MIX knob is medium size
-- [ ] Active dots are orange, inactive are dark
-- [ ] White indicator dot rotates correctly
-- [ ] Dot arc opening is at bottom (standard knob orientation)
-- [ ] pluginval passes
-- [ ] All unit tests pass
-
----
-
-### Subtask 2: Editable Value Fields
-
-**Objective:** Make the value display below each knob editable via double-click.
-
-**Files to modify:**
-- `Source/PluginEditor.cpp`
-- `Source/UI/GrainLookAndFeel.cpp`
-
-**Behavior Spec:**
-
-| Action | Result |
-|--------|--------|
-| Normal view | Appears as static text ("25%", "0 dB") |
-| Double-click on value | Activates text editing, selects all text |
-| Type value | Replaces current value |
-| Enter / click outside | Confirms and applies value |
-| Escape | Cancels edit, restores previous value |
-| Out-of-range value | Clamps to valid range |
-
-**Implementation:**
-
-```cpp
-// In PluginEditor constructor - configure each slider
-grainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-grainSlider.setTextBoxIsEditable(true);
-
-// In GrainLookAndFeel - style the text editor to look like plain text
-void GrainLookAndFeel::fillTextEditorBackground(juce::Graphics& g, int width, int height,
-                                                 juce::TextEditor& editor) override
-{
-    // Transparent background - appears as plain text
-    g.setColour(juce::Colours::transparentBlack);
-    g.fillAll();
-}
-
-void GrainLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height,
-                                              juce::TextEditor& editor) override
-{
-    // Only show subtle outline when focused (editing)
-    if (editor.hasKeyboardFocus(true))
+private:
+    void timerCallback() override
     {
-        g.setColour(GrainColours::kAccent.withAlpha(0.5f));
-        g.drawRoundedRectangle(0.0f, 0.0f, static_cast<float>(width), 
-                               static_cast<float>(height), 2.0f, 1.0f);
+        auto& src = processor.getMeterLevels(); // std::atomic<float>[4]
+        juce::DynamicObject payload;
+        payload.setProperty("inL",  src[0].load());
+        payload.setProperty("inR",  src[1].load());
+        payload.setProperty("outL", src[2].load());
+        payload.setProperty("outR", src[3].load());
+        webView.emitEventIfBrowserIsVisible("meterUpdate", juce::var(&payload));
     }
-}
 
-// Optional: Style the text
-juce::Font GrainLookAndFeel::getLabelFont(juce::Label& label) override
-{
-    return juce::Font(juce::FontOptions().withHeight(14.0f));
-}
-```
-
-**Acceptance criteria:**
-- [ ] Value fields appear as static text by default
-- [ ] Double-click activates edit mode
-- [ ] Text is selected on edit activation
-- [ ] Enter confirms value
-- [ ] Escape cancels edit
-- [ ] Invalid values are clamped
-- [ ] Subtle outline appears only during editing
-
----
-
-### Subtask 3: Vertical Segmented Meters with Peak Hold
-
-**Objective:** Replace placeholder meters with vertical LED-style segmented meters including peak hold.
-
-**Files to modify:**
-- `Source/PluginEditor.h`
-- `Source/PluginEditor.cpp`
-
-**Meter Design Spec (from JSX):**
-
-| Element | Value |
-|---------|-------|
-| Segments per channel | 32 |
-| Segment width | 8 px |
-| Segment height | 7 px |
-| Gap between segments | ~2 px |
-| Gap between L/R | 4 px |
-| Background | #1a1a1a rounded rect |
-| Padding | 8 px |
-
-**Color Zones:**
-
-| Zone | Segment range | Color |
-|------|---------------|-------|
-| Green | 0 - 75% (segments 0-23) | #22c55e |
-| Yellow | 75 - 90% (segments 24-28) | #eab308 |
-| Red | 90 - 100% (segments 29-31) | #ef4444 |
-| Off | — | #3a3a3a |
-
-**Peak Hold Spec:**
-
-| Phase | Duration | Behavior |
-|-------|----------|----------|
-| Capture | Instant | When new peak exceeds current, update immediately |
-| Hold | ~1 second | Peak segment stays illuminated (30 frames at 30 FPS) |
-| Decay | Gradual | Multiply by 0.95 each frame after hold expires |
-
-**Implementation:**
-
-```cpp
-// In PluginEditor.h
-struct PeakHold
-{
-    float peakLevel = 0.0f;
-    int holdCounter = 0;
-    
-    void update(float newLevel)
+    void parameterChanged(const juce::String& paramId, float newValue) override
     {
-        if (newLevel >= peakLevel)
-        {
-            peakLevel = newLevel;
-            holdCounter = 30;  // ~1s at 30 FPS
-        }
-        else if (holdCounter > 0)
-        {
-            --holdCounter;
-        }
-        else
-        {
-            peakLevel *= 0.95f;  // Gradual decay
-        }
+        juce::DynamicObject payload;
+        payload.setProperty("paramId", paramId);
+        payload.setProperty("value",   newValue);
+        webView.emitEventIfBrowserIsVisible("paramChanged", juce::var(&payload));
     }
-    
-    void reset()
+
+    void onParamChange(const juce::var& event)
     {
-        peakLevel = 0.0f;
-        holdCounter = 0;
+        auto paramId = event["paramId"].toString();
+        auto value   = static_cast<float>(event["value"]);
+        if (auto* param = processor.apvts.getParameter(paramId))
+            param->setValueNotifyingHost(param->convertTo0to1(value));
     }
-};
 
-// Members
-PeakHold peakHoldInL, peakHoldInR;
-PeakHold peakHoldOutL, peakHoldOutR;
-juce::Rectangle<int> inputMeterBounds;
-juce::Rectangle<int> outputMeterBounds;
-
-// In PluginEditor.cpp
-void GrainAudioProcessorEditor::timerCallback()
-{
-    // Get current levels from processor
-    float inL = audioProcessor.getInputLevelL();
-    float inR = audioProcessor.getInputLevelR();
-    float outL = audioProcessor.getOutputLevelL();
-    float outR = audioProcessor.getOutputLevelR();
-    
-    // Update peak hold
-    peakHoldInL.update(inL);
-    peakHoldInR.update(inR);
-    peakHoldOutL.update(outL);
-    peakHoldOutR.update(outR);
-    
-    // Only repaint meter areas (optimization)
-    repaint(inputMeterBounds);
-    repaint(outputMeterBounds);
-}
-
-void GrainAudioProcessorEditor::drawMeter(juce::Graphics& g,
-                                           juce::Rectangle<int> bounds,
-                                           float levelL, float levelR,
-                                           float peakL, float peakR)
-{
-    const int numSegments = 32;
-    const int segmentWidth = 8;
-    const int segmentHeight = 7;
-    const int segmentGap = 2;
-    const int channelGap = 4;
-    const int padding = 8;
-    
-    // Draw background
-    g.setColour(GrainColours::kSurface);
-    g.fillRoundedRectangle(bounds.toFloat(), 4.0f);
-    
-    // Calculate positions
-    int totalChannelWidth = segmentWidth * 2 + channelGap;
-    int startX = bounds.getCentreX() - totalChannelWidth / 2;
-    
-    auto drawChannel = [&](int x, float level, float peak)
+    void sendInitState()
     {
-        int litSegments = static_cast<int>(level * numSegments);
-        int peakSegment = juce::jmax(0, static_cast<int>(peak * numSegments) - 1);
-        
-        for (int i = 0; i < numSegments; ++i)
-        {
-            // Bottom to top
-            int y = bounds.getBottom() - padding - (i + 1) * (segmentHeight + segmentGap);
-            bool isLit = i < litSegments;
-            bool isPeak = (i == peakSegment) && (peak > level) && (peak > 0.01f);
-            
-            juce::Colour colour;
-            float position = static_cast<float>(i) / numSegments;
-            
-            if (!isLit && !isPeak)
-            {
-                colour = GrainColours::kMeterOff;
-            }
-            else if (position > 0.9f)
-            {
-                colour = GrainColours::kMeterRed;
-            }
-            else if (position > 0.75f)
-            {
-                colour = GrainColours::kMeterYellow;
-            }
-            else
-            {
-                colour = GrainColours::kMeterGreen;
-            }
-            
-            // Peak hold with reduced alpha to differentiate
-            if (isPeak && !isLit)
-                colour = colour.withAlpha(0.6f);
-            
-            g.setColour(colour);
-            g.fillRoundedRectangle(static_cast<float>(x), static_cast<float>(y),
-                                   static_cast<float>(segmentWidth), 
-                                   static_cast<float>(segmentHeight), 1.0f);
-        }
-    };
-    
-    drawChannel(startX, levelL, peakL);
-    drawChannel(startX + segmentWidth + channelGap, levelR, peakR);
-}
-```
-
-**Acceptance criteria:**
-- [ ] Meters display vertically (bottom to top)
-- [ ] 32 segments per channel, L and R visible
-- [ ] Green/yellow/red color zones correct
-- [ ] Inactive segments visible (dark gray)
-- [ ] Peak hold segment stays lit ~1 second
-- [ ] Peak decays gradually after hold
-- [ ] Only meter bounds repainted each frame (optimization)
-- [ ] Responds correctly to audio levels
-
----
-
-### Subtask 4: Bypass Button (LED Style)
-
-**Objective:** Style bypass as circular LED button per JSX mockup.
-
-**Files to modify:**
-- `Source/PluginEditor.cpp`
-- `Source/UI/GrainLookAndFeel.cpp`
-
-**Design Spec:**
-
-| State | Background | Icon color | Shadow |
-|-------|------------|------------|--------|
-| Processing (bypass=false) | #d97706 | white | glow |
-| Bypassed (bypass=true) | #1a1a1a | #666666 | inset |
-
-**Size:** 40 × 40 px circular
-
-**Implementation:**
-
-```cpp
-void GrainLookAndFeel::drawButtonBackground(juce::Graphics& g,
-                                             juce::Button& button,
-                                             const juce::Colour& backgroundColour,
-                                             bool isMouseOver, bool isButtonDown) override
-{
-    auto bounds = button.getLocalBounds().toFloat();
-    
-    if (button.getName() == "bypass")
-    {
-        bool isOn = button.getToggleState();  // true = bypassed
-        
-        // Background
-        g.setColour(isOn ? GrainColours::kBypassOff : GrainColours::kBypassOn);
-        g.fillEllipse(bounds);
-        
-        // Glow when processing
-        if (!isOn)
-        {
-            g.setColour(GrainColours::kAccent.withAlpha(0.3f));
-            g.drawEllipse(bounds.expanded(2.0f), 4.0f);
-        }
-        
-        return;
+        juce::DynamicObject state;
+        state.setProperty("grain",      getParamValue("grain"));
+        state.setProperty("warmth",     getParamValue("warmth"));
+        state.setProperty("inputGain",  getParamValue("inputGain"));
+        state.setProperty("mix",        getParamValue("mix"));
+        state.setProperty("outputGain", getParamValue("outputGain"));
+        state.setProperty("focus",      getParamValue("focus"));
+        state.setProperty("bypassed",   processor.isBypassed());
+        webView.emitEventIfBrowserIsVisible("initState", juce::var(&state));
     }
-    
-    // Default button rendering...
-}
-```
 
-**Acceptance criteria:**
-- [ ] Bypass button is circular
-- [ ] Orange when processing, dark when bypassed
-- [ ] Power icon visible and correctly colored
-- [ ] Click toggles state
-- [ ] UI opacity reduces to 40% when bypassed
-
----
-
-### Subtask 5: Focus Selector (3-way Switch)
-
-**Objective:** Implement Focus as 3 grouped buttons (Opción A).
-
-**Design Spec:**
-
-```
-┌─────────────────────────────────┐
-│  LOW  │  MID  │  HIGH │        │
-└─────────────────────────────────┘
-```
-
-| Element | Value |
-|---------|-------|
-| Container bg | #1a1a1a |
-| Container padding | 3 px |
-| Button padding | 5px vertical, 14px horizontal |
-| Active bg | #d97706 |
-| Active text | #ffffff |
-| Inactive bg | transparent |
-| Inactive text | #888888 |
-| Border radius | 4 px (buttons), 8 px (container) |
-
-**Implementation (3 TextButtons with radio behavior):**
-
-```cpp
-// In PluginEditor.h
-juce::TextButton focusLowButton{"LOW"};
-juce::TextButton focusMidButton{"MID"};
-juce::TextButton focusHighButton{"HIGH"};
-
-// In constructor
-auto updateFocusButtons = [this](int selected)
-{
-    focusLowButton.setToggleState(selected == 0, juce::dontSendNotification);
-    focusMidButton.setToggleState(selected == 1, juce::dontSendNotification);
-    focusHighButton.setToggleState(selected == 2, juce::dontSendNotification);
-};
-
-focusLowButton.onClick = [this, updateFocusButtons] {
-    // Assuming focus parameter normalized 0-1 maps to 0,1,2
-    focusParam->setValueNotifyingHost(0.0f);
-    updateFocusButtons(0);
-};
-focusMidButton.onClick = [this, updateFocusButtons] {
-    focusParam->setValueNotifyingHost(0.5f);
-    updateFocusButtons(1);
-};
-focusHighButton.onClick = [this, updateFocusButtons] {
-    focusParam->setValueNotifyingHost(1.0f);
-    updateFocusButtons(2);
+    juce::WebBrowserComponent webView;
+    GrainProcessor& processor;
 };
 ```
 
-**Acceptance criteria:**
-- [ ] Three buttons in horizontal row
-- [ ] Only one can be selected at a time
-- [ ] Selected button is orange with white text
-- [ ] Unselected buttons have gray text on dark bg
-- [ ] Connected to Focus parameter via APVTS
-- [ ] Syncs when parameter changes from DAW automation
-
 ---
 
-### Subtask 6: Layout & Polish
+## 8. Resource Embedding
 
-**Objective:** Implement exact layout from JSX mockup and final polish.
-
-**Layout Implementation:**
+HTML/CSS/JS files must be embedded into the binary via Projucer's **Binary Resources** panel, accessed at runtime via `BinaryData`:
 
 ```cpp
-void GrainAudioProcessorEditor::resized()
+// In PluginEditor — load embedded HTML
+juce::String getUIResourceURL()
 {
-    auto bounds = getLocalBounds();
-    
-    // Header: 60px
-    auto headerArea = bounds.removeFromTop(60);
-    // Title left, bypass right
-    
-    // Main area
-    auto mainArea = bounds.removeFromTop(280);
-    
-    // Three columns
-    auto leftColumn = mainArea.removeFromLeft(100);   // IN meter
-    auto rightColumn = mainArea.removeFromRight(100); // OUT meter
-    auto centerColumn = mainArea;                      // Knobs + Focus
-    
-    // Store meter bounds for optimized repaint
-    inputMeterBounds = leftColumn.reduced(10);
-    outputMeterBounds = rightColumn.reduced(10);
-    
-    // Center: GRAIN + WARM row, FOCUS row
-    auto knobRow = centerColumn.removeFromTop(160);
-    auto focusRow = centerColumn.removeFromTop(50);
-    
-    // Footer knob row: INPUT | MIX | OUTPUT
-    auto footerKnobArea = bounds.removeFromTop(100);
-    
-    // Actual footer: version + copyright
-    auto footerArea = bounds;
+    // Write to temp file on first load (or use data URI)
+    auto html = juce::String::fromUTF8(BinaryData::index_html, BinaryData::index_htmlSize);
+    // Option A: data URI (simple, no file I/O)
+    return "data:text/html;charset=utf-8," + juce::URL::addEscapeChars(html, false);
+    // Option B: write to appDataDir/grain_ui/ and return file:// URL
 }
 ```
 
-**Header:**
-- Title: "GRAIN" — bold, #1a1a1a
-- Subtitle: "MICRO-HARMONIC SATURATION" — tracking-wide, #4a4a4a
-- Bypass button: right-aligned
-
-**Footer:**
-- Border top: 1px line, rgba(0,0,0,0.1)
-- Left: "v1.0.0"
-- Right: "Sergio Brocos © 2025"
-- Text color: #4a4a4a
-
-**Acceptance criteria:**
-- [ ] Layout matches JSX mockup proportions
-- [ ] Meters on left and right edges, vertical
-- [ ] GRAIN and WARM centered and large
-- [ ] FOCUS selector centered below main knobs
-- [ ] INPUT, MIX, OUTPUT in bottom row
-- [ ] Footer with separator, version, and copyright
+> **Recommendation:** Use a **temp file approach** (Option B) for development to allow hot-reload during iteration, then switch to the data URI approach for release. The `index.html` can reference `grain-ui.js` and `grain-ui.css` as relative paths when serving from a directory.
 
 ---
 
-## Files Summary
+## 9. Acceptance Criteria
 
-| File | Action | Subtask |
-|------|--------|---------|
-| `Source/UI/GrainLookAndFeel.h` | Create | 1, 2, 4 |
-| `Source/UI/GrainLookAndFeel.cpp` | Create | 1, 2, 4 |
-| `Source/GrainColours.h` | Modify | 1 |
-| `Source/PluginEditor.h` | Modify | 2, 3, 5, 6 |
-| `Source/PluginEditor.cpp` | Modify | 1, 2, 3, 4, 5, 6 |
-| `GRAIN.jucer` | Modify | 1 |
-
----
-
-## Global Acceptance Criteria
-
-### Visual
-- [ ] Dot-style knobs with correct sizes (L/M/S)
-- [ ] Dot arc opening at bottom (standard orientation)
-- [ ] Vertical segmented meters with color zones
-- [ ] Peak hold visible (~1s hold, then decay)
-- [ ] Circular bypass button with LED behavior
-- [ ] 3-way Focus switch (radio buttons)
-- [ ] Editable value fields (double-click to edit)
-- [ ] Layout matches JSX mockup
-- [ ] All text legible
-
-### Functionality
-- [ ] All 6 parameters + bypass functional
-- [ ] Meters respond to audio with peak hold
-- [ ] Bypass dims UI to 40% opacity
-- [ ] Value fields accept typed input
-- [ ] No clicks or artifacts
-
-### Performance
-- [ ] Meter repaint optimized (bounds only)
-- [ ] CPU usage ≤ Phase A
-- [ ] pluginval passes
-- [ ] All unit tests pass
+| # | Criterion | How to verify |
+|---|-----------|---------------|
+| 1 | UI renders inside plugin window with correct colors/layout | Visual inspection in DAW |
+| 2 | Knob drag updates APVTS parameter | DAW automation lane shows change |
+| 3 | APVTS change (DAW automation) updates knob visually | Record automation, play back |
+| 4 | Focus switch sets correct `focus` param value (0/1/2) | Parameter monitor in DAW |
+| 5 | Bypass button disables processing and dims UI | Bypass reveal listening test |
+| 6 | VU meters animate with real signal levels | Route audio through plugin |
+| 7 | Meters go near-zero in bypass | Visual check |
+| 8 | Reloading the plugin window restores correct param state | Close/reopen editor |
+| 9 | No oversampling controls visible in UI | Visual inspection |
+| 10 | Plugin passes `pluginval --strictness-level 10` | CI/CD pipeline |
 
 ---
 
-## Design Decisions (Confirmed)
+## 10. Implementation Order
 
-| Decision | Value | Justification |
-|----------|-------|---------------|
-| Oversample exposed | **No** | Keep internal per documentation, "safe" philosophy |
-| WARM vs WARMTH | **WARM** | More compact visually |
-| Focus implementation | **3 TextButtons** | Better UX than ComboBox for 3 options |
-| Peak hold | **Yes** | Standard in pro plugins, useful for mixing |
-| Editable values | **Yes** | Precision for advanced users |
-| Tooltips | **No** | No clear content to add |
+```
+Day 1 — Setup
+  ├── Add WebBrowserComponent to PluginEditor (replaces native sliders)
+  ├── Verify JUCE version supports withNativeIntegration()
+  └── Minimal index.html loads and renders inside editor window
 
----
+Day 2 — Bridge
+  ├── Implement GrainWebBridge (event send/receive skeleton)
+  ├── uiReady → initState handshake working
+  └── Console log events in browser (debug mode)
 
-## Testing Checklist
+Day 3 — Knobs + Focus
+  ├── Port Knob class from JSX to vanilla JS
+  ├── All 5 knobs render with correct dot scales
+  └── Knob drag → paramChange → APVTS verified
 
-```bash
-# Build
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - VST3" -configuration Debug build
+Day 4 — Meters + Bypass
+  ├── Expose MeterLevels atomics from GrainProcessor
+  ├── Timer → meterUpdate events → meter DOM updates
+  └── Bypass button → bypassChange event → processor bypass
 
-# Tests
-./scripts/run_tests.sh
+Day 5 — Polish + Edge Cases
+  ├── Init state on editor reopen
+  ├── APVTS → paramChanged → knob visual sync (DAW automation)
+  └── Style QA against JSX reference
 
-# Validation
-pluginval --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
-
-# Visual verification in DAW
-# - Check all knob sizes and styling
-# - Verify meter animation and peak hold
-# - Test bypass toggle and UI dimming
-# - Double-click value fields to edit
-# - Automate parameters, verify sync
+Day 6 — Validation
+  ├── pluginval run
+  ├── Full acceptance criteria checklist
+  └── Document known limitations / next steps
 ```
 
 ---
 
-*Revised based on GrainUI.jsx mockup — GRAIN TFM Project*
+## 11. Risks & Mitigations
+
+| Risk | Likelihood | Mitigation |
+|------|------------|------------|
+| JUCE version doesn't support `withNativeIntegration()` | Medium | Implement `evaluateJavascript` fallback (§5.4) as parallel path |
+| macOS WebKit sandboxing blocks local file access | Low | Use data URI approach for HTML embedding |
+| Meter update performance at 66Hz degrades audio | Low | Atomics + timer pattern is decoupled from audio thread |
+| Knob feel differs from native JUCE sliders | N/A | JSX already uses `<input type="range">` — identical feel |
+| Hot-reload workflow slow during JS iteration | Medium | Serve from localhost during dev (`http://localhost:3000`), switch to embedded for release |
+
+---
+
+## 12. Dev Workflow Tip
+
+During JS development, run the Vite dev server from the original JSX repo and point `GrainEditor` to `http://localhost:5173` instead of the embedded resource. This enables **hot module reload** without recompiling the plugin.
+
+```cpp
+#if JUCE_DEBUG
+    webView.goToURL("http://localhost:5173");  // Vite dev server
+#else
+    webView.goToURL(getEmbeddedResourceURL()); // Production binary
+#endif
+```
+
+---
+
+*TASK 010 — GRAIN project — Master Desarrollo con IA*
