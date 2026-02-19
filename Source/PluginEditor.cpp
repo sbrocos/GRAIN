@@ -17,7 +17,7 @@
 namespace
 {
 constexpr int kEditorWidth = 580;
-constexpr int kWebViewHeight = 480;
+constexpr int kWebViewHeight = 665;
 constexpr int kTransportBarHeight = 50;  // standalone transport bar
 constexpr int kWaveformHeight = 120;     // standalone waveform display
 }  // namespace
@@ -100,7 +100,9 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     }
 
     // Set editor size AFTER all components are created, so resized() can lay them out.
-    const int editorHeight = standaloneMode ? (kWebViewHeight + kWaveformHeight + kTransportBarHeight) : kWebViewHeight;
+    const int editorHeight = standaloneMode
+                                 ? (kWebViewHeight + kWaveformHeight + kTransportBarHeight - 20)
+                                 : kWebViewHeight;
     setSize(kEditorWidth, editorHeight);
 
     // Start meter timer (60 Hz ~ 16ms)
