@@ -90,7 +90,7 @@ Tests run via a separate console application target (`GRAINTests.jucer`), not th
 
 ```bash
 # Quick: build + run via script
-./scripts/run_tests.sh
+./bin/run_tests
 
 # Manual: build test runner, then execute
 xcodebuild -project Builds/MacOSX-Tests/GRAINTests.xcodeproj \
@@ -171,7 +171,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   -scheme "GRAIN - VST3" -configuration Debug build
 
 # 3. Run unit tests
-./scripts/run_tests.sh
+./bin/run_tests
 
 # 4. Run pluginval
 /Applications/pluginval.app/Contents/MacOS/pluginval \
@@ -189,7 +189,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
   --skip-gui-tests --strictness-level 10 --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
 
 # Run unit tests
-./scripts/run_tests.sh
+./bin/run_tests
 
 # Perform full listening test checklist
 # Test in multiple DAWs (Logic, Ableton)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # GRAIN - Code Quality Tools
-# Usage: ./scripts/format.sh [check|fix|tidy]
+# Usage: ./scripts/format [check|fix|tidy]
 
 set -e
 

@@ -1,0 +1,102 @@
+#!/bin/bash
+# GRAIN — Build helper script
+# Usage: ./bin/build [options]
+#   -r, --resave      Projucer resave (regenerate BinaryData & Xcode project)
+#   -v, --vst3        Build VST3 plugin
+#   -s, --standalone   Build Standalone application
+#   -o, --open        Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
+#   -a, --all         Resave + Build VST3 + Build Standalone + Open
+#   -h, --help        Show this help message
+#
+# Examples:
+#   ./bin/build -r -v          # Resave then build VST3
+#   ./bin/build -r -s -o       # Resave, build standalone, open it
+#   ./bin/build -a             # Resave + build everything + open
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PROJUCER="/Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer"
+XCODEPROJ="$PROJECT_DIR/Builds/MacOSX/GRAIN.xcodeproj"
+STANDALONE_APP="$PROJECT_DIR/Builds/MacOSX/build/Debug/GRAIN.app"
+
+DO_RESAVE=false
+DO_VST3=false
+DO_STANDALONE=false
+DO_OPEN=false
+
+show_help() {
+    cat <<'HELP'
+GRAIN — Build helper script
+
+Usage: bin/build [options]
+
+Options:
+  -r, --resave       Projucer resave (regenerate BinaryData & Xcode project)
+  -v, --vst3         Build VST3 plugin
+  -s, --standalone   Build Standalone application
+  -o, --open         Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
+  -a, --all          Resave + Build VST3 + Build Standalone + Open
+  -h, --help         Show this help message
+
+Examples:
+  bin/build -r -v          # Resave then build VST3
+  bin/build -r -s -o       # Resave, build standalone, open it
+  bin/build -a             # Resave + build everything + open
+HELP
+}
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 1
+fi
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -r|--resave)     DO_RESAVE=true ;;
+        -v|--vst3)       DO_VST3=true ;;
+        -s|--standalone) DO_STANDALONE=true ;;
+        -o|--open)       DO_OPEN=true ;;
+        -a|--all)        DO_RESAVE=true; DO_VST3=true; DO_STANDALONE=true; DO_OPEN=true ;;
+        -h|--help)       show_help; exit 0 ;;
+        *)
+            echo "Unknown option: $1"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+# Resave
+if [ "$DO_RESAVE" = true ]; then
+    echo "=== Projucer resave ==="
+    "$PROJUCER" --resave "$PROJECT_DIR/GRAINTests.jucer"
+    "$PROJUCER" --resave "$PROJECT_DIR/GRAIN.jucer"
+    echo "Resave done."
+fi
+
+# Build VST3
+if [ "$DO_VST3" = true ]; then
+    echo "=== Building VST3 ==="
+    xcodebuild -project "$XCODEPROJ" \
+        -scheme "GRAIN - VST3" -configuration Debug build | tail -5
+fi
+
+# Build Standalone
+if [ "$DO_STANDALONE" = true ]; then
+    echo "=== Building Standalone ==="
+    xcodebuild -project "$XCODEPROJ" \
+        -scheme "GRAIN - Standalone Plugin" -configuration Debug build | tail -5
+fi
+
+# Open Standalone
+if [ "$DO_OPEN" = true ]; then
+    echo "=== Opening Standalone ==="
+    open "$STANDALONE_APP"
+fi
+
+echo "=== Done ==="

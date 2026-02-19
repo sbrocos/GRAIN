@@ -3,7 +3,7 @@
 
     PluginEditor.cpp
     GRAIN — Micro-harmonic saturation processor.
-    Plugin editor implementation: functional layout (Phase A).
+    Plugin editor implementation: HTML/CSS/JS UI via WebBrowserComponent (Phase B).
 
   ==============================================================================
 */
@@ -12,37 +12,43 @@
 
 #include "PluginProcessor.h"
 
+#include <BinaryData.h>
+
 namespace
 {
-constexpr int kEditorWidth = 500;
-constexpr int kEditorHeight = 440;
-constexpr int kHeaderHeight = 55;
-constexpr int kFooterHeight = 120;
-constexpr int kMeterColumnWidth = 60;    // meter + padding
+constexpr int kEditorWidth = 580;
+constexpr int kWebViewHeight = 665;
 constexpr int kTransportBarHeight = 50;  // standalone transport bar
 constexpr int kWaveformHeight = 120;     // standalone waveform display
 }  // namespace
 
 //==============================================================================
-void GRAINAudioProcessorEditor::setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight,
-                                                  const juce::String& suffix)
+// MIME type helper for resource provider
+
+static const char* getMimeForExtension(const juce::String& extension)
 {
-    slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, textBoxWidth, textBoxHeight);
-
-    if (suffix.isNotEmpty())
-    {
-        slider.setTextValueSuffix(suffix);
-    }
-
-    addAndMakeVisible(slider);
+    if (extension == "html")
+        return "text/html";
+    if (extension == "js")
+        return "text/javascript";
+    if (extension == "css")
+        return "text/css";
+    if (extension == "ttf")
+        return "font/ttf";
+    return "application/octet-stream";
 }
 
-void GRAINAudioProcessorEditor::setupLabel(juce::Label& label)
+//==============================================================================
+// SinglePageBrowser — prevent navigation away from embedded UI
+
+bool GRAINAudioProcessorEditor::SinglePageBrowser::pageAboutToLoad(const juce::String& newURL)
 {
-    label.setJustificationType(juce::Justification::centred);
-    label.setColour(juce::Label::textColourId, GrainColours::kText);
-    addAndMakeVisible(label);
+    return newURL == getResourceProviderRoot();
+}
+
+void GRAINAudioProcessorEditor::SinglePageBrowser::pageFinishedLoading(const juce::String& /*url*/)
+{
+    pageReady = true;
 }
 
 //==============================================================================
@@ -50,51 +56,32 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     : AudioProcessorEditor(&p)
     , processor(p)
     , standaloneMode(p.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    , webView(juce::WebBrowserComponent::Options{}
+                  .withNativeIntegrationEnabled()
+                  .withOptionsFrom(driveSliderRelay)
+                  .withOptionsFrom(warmthSliderRelay)
+                  .withOptionsFrom(inputSliderRelay)
+                  .withOptionsFrom(mixSliderRelay)
+                  .withOptionsFrom(outputSliderRelay)
+                  .withOptionsFrom(bypassToggleRelay)
+                  .withOptionsFrom(focusComboRelay)
+                  .withResourceProvider([this](const auto& url) { return getResource(url); }))
+    , driveAttachment(*p.getAPVTS().getParameter("drive"), driveSliderRelay)
+    , warmthAttachment(*p.getAPVTS().getParameter("warmth"), warmthSliderRelay)
+    , inputAttachment(*p.getAPVTS().getParameter("inputGain"), inputSliderRelay)
+    , mixAttachment(*p.getAPVTS().getParameter("mix"), mixSliderRelay)
+    , outputAttachment(*p.getAPVTS().getParameter("output"), outputSliderRelay)
+    , bypassAttachment(*p.getAPVTS().getParameter("bypass"), bypassToggleRelay)
+    , focusAttachment(*p.getAPVTS().getParameter("focus"), focusComboRelay)
 {
-    setLookAndFeel(&grainLookAndFeel);
+    // Keep LookAndFeel for standalone native components
+    if (standaloneMode)
+    {
+        setLookAndFeel(&grainLookAndFeel);
+    }
 
-    auto& apvts = processor.getAPVTS();
-
-    // === Main controls (creative — large knobs) ===
-    setupRotarySlider(grainSlider, 60, 20);
-    grainAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "drive", grainSlider);
-    setupLabel(grainLabel);
-
-    setupRotarySlider(warmthSlider, 60, 20);
-    warmthAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "warmth", warmthSlider);
-    setupLabel(warmthLabel);
-
-    // === Secondary controls (utility — small knobs) ===
-    setupRotarySlider(inputSlider, 50, 18, " dB");
-    inputAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "inputGain", inputSlider);
-    setupLabel(inputLabel);
-
-    setupRotarySlider(mixSlider, 50, 18);
-    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "mix", mixSlider);
-    setupLabel(mixLabel);
-
-    // === Focus (selector) ===
-    focusSelector.addItem("LOW", 1);
-    focusSelector.addItem("MID", 2);
-    focusSelector.addItem("HIGH", 3);
-    addAndMakeVisible(focusSelector);
-    focusAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(apvts, "focus", focusSelector);
-    setupLabel(focusLabel);
-
-    setupRotarySlider(outputSlider, 50, 18, " dB");
-    outputAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "output", outputSlider);
-    setupLabel(outputLabel);
-
-    // === Bypass ===
-    bypassButton.setClickingTogglesState(true);
-    addAndMakeVisible(bypassButton);
-    bypassAttachment =
-        std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "bypass", bypassButton);
+    addAndMakeVisible(webView);
+    webView.goToURL(juce::WebBrowserComponent::getResourceProviderRoot());
 
     // === Standalone: file player + waveform + transport bar + recorder (GT-17–GT-20) ===
     if (standaloneMode)
@@ -118,16 +105,22 @@ GRAINAudioProcessorEditor::GRAINAudioProcessorEditor(GRAINAudioProcessor& p)
     }
 
     // Set editor size AFTER all components are created, so resized() can lay them out.
-    const int editorHeight = standaloneMode ? (kEditorHeight + kWaveformHeight + kTransportBarHeight) : kEditorHeight;
+    const int editorHeight = standaloneMode
+                                 ? (kWebViewHeight + kWaveformHeight + kTransportBarHeight - 20)
+                                 : kWebViewHeight;
     setSize(kEditorWidth, editorHeight);
 
-    // Start meter timer (30 FPS)
-    startTimerHz(30);
+    // Start meter timer (60 Hz ~ 16ms)
+    startTimerHz(60);
 }
 
 GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
 {
-    setLookAndFeel(nullptr);
+    if (standaloneMode)
+    {
+        setLookAndFeel(nullptr);
+    }
+
     stopTimer();
 
     if (standaloneMode)
@@ -150,62 +143,49 @@ GRAINAudioProcessorEditor::~GRAINAudioProcessorEditor()
 }
 
 //==============================================================================
+std::optional<juce::WebBrowserComponent::Resource> GRAINAudioProcessorEditor::getResource(const juce::String& url)
+{
+    const auto path =
+        (url == "/" || url.isEmpty()) ? juce::String("index.html") : url.fromFirstOccurrenceOf("/", false, false);
+
+    // Map resource filenames to BinaryData
+    struct ResourceEntry
+    {
+        const char* data;
+        int size;
+    };
+
+    // BinaryData names: Projucer converts hyphens/dots → underscores
+    // e.g., "grain-ui.js" → BinaryData::grainui_js
+    static const std::unordered_map<std::string, ResourceEntry> resources = {
+        {"index.html", {BinaryData::index_html, BinaryData::index_htmlSize}},
+        {"grain-ui.js", {BinaryData::grainui_js, BinaryData::grainui_jsSize}},
+        {"grain-ui.css", {BinaryData::grainui_css, BinaryData::grainui_cssSize}},
+        {"Inter-Regular.ttf", {BinaryData::InterRegular_ttf, BinaryData::InterRegular_ttfSize}},
+        {"Inter-RegularItalic.ttf", {BinaryData::InterRegularItalic_ttf, BinaryData::InterRegularItalic_ttfSize}},
+        {"Inter-ExtraBoldItalic.ttf",
+         {BinaryData::InterExtraBoldItalic_ttf, BinaryData::InterExtraBoldItalic_ttfSize}}};
+
+    auto it = resources.find(path.toStdString());
+
+    if (it != resources.end())
+    {
+        auto ext = path.fromLastOccurrenceOf(".", false, false).toLowerCase();
+
+        std::vector<std::byte> data(static_cast<size_t>(it->second.size));
+        std::memcpy(data.data(), it->second.data, data.size());
+
+        return juce::WebBrowserComponent::Resource{std::move(data), getMimeForExtension(ext)};
+    }
+
+    return std::nullopt;
+}
+
+//==============================================================================
 void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // Background
-    g.fillAll(GrainColours::kBackground);
-
-    // Header area (sage green bg with dark text)
-    const auto headerArea = getLocalBounds().removeFromTop(kHeaderHeight);
-
-    // Title
-    g.setColour(GrainColours::kText);
-    g.setFont(juce::Font(juce::FontOptions(24.0f).withStyle("Bold")));
-    g.drawText("GRAIN", headerArea.reduced(15, 0), juce::Justification::centredLeft);
-
-    // Subtitle
-    auto subtitleArea = headerArea.reduced(15, 0);
-    subtitleArea.removeFromTop(30);
-    g.setColour(GrainColours::kTextDim);
-    g.setFont(juce::Font(juce::FontOptions(9.0f).withStyle("Bold")));
-    g.drawText("MICRO-HARMONIC SATURATION", subtitleArea, juce::Justification::centredLeft);
-
-    // Meters
-    auto bounds = getLocalBounds();
-    bounds.removeFromTop(kHeaderHeight);
-    if (standaloneMode)
-    {
-        bounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
-    }
-    bounds.removeFromBottom(kFooterHeight);
-
-    const auto inputMeterArea = bounds.removeFromLeft(kMeterColumnWidth).toFloat().reduced(10, 20);
-    const auto outputMeterArea = bounds.removeFromRight(kMeterColumnWidth).toFloat().reduced(10, 20);
-
-    drawMeter(g, inputMeterArea, displayInputL, displayInputR, "IN");
-    drawMeter(g, outputMeterArea, displayOutputL, displayOutputR, "OUT");
-
-    // Footer separator line + version/copyright
-    auto footerBounds = getLocalBounds();
-    if (standaloneMode)
-    {
-        footerBounds.removeFromBottom(kTransportBarHeight + kWaveformHeight);
-    }
-    auto footerArea = footerBounds.removeFromBottom(kFooterHeight);
-
-    // Separator line at top of footer
-    g.setColour(juce::Colours::black.withAlpha(0.1f));
-    g.drawHorizontalLine(footerArea.getY(), static_cast<float>(footerArea.getX()),
-                         static_cast<float>(footerArea.getRight()));
-
-    // Version and copyright in the bottom strip
-    auto infoArea = footerArea.removeFromBottom(20).reduced(15, 0);
-    g.setColour(GrainColours::kTextDim);
-    g.setFont(juce::Font(juce::FontOptions(10.0f)));
-    g.drawText("v1.0.0", infoArea, juce::Justification::centredLeft);
-    g.drawText(juce::CharPointer_UTF8("Sergio Brocos \xc2\xa9 2025"), infoArea, juce::Justification::centredRight);
-
-    // Drag & drop hover overlay (GT-19)
+    // WebView handles all main UI rendering.
+    // Only paint drag & drop overlay for standalone mode.
     if (dragHovering)
     {
         constexpr float kBorderWidth = 3.0f;
@@ -213,59 +193,6 @@ void GRAINAudioProcessorEditor::paint(juce::Graphics& g)
         g.setColour(dragAccepted ? GrainColours::kAccent : GrainColours::kMeterRed);
         g.drawRoundedRectangle(borderBounds, 4.0f, kBorderWidth);
     }
-}
-
-void GRAINAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> area, float levelL, float levelR,
-                                          const juce::String& label)
-{
-    const float labelHeight = 20.0f;
-    const auto labelArea = area.removeFromTop(labelHeight);
-
-    g.setColour(GrainColours::kText);
-    g.setFont(juce::Font(juce::FontOptions(12.0f)));
-    g.drawText(label, labelArea, juce::Justification::centred);
-
-    auto meterArea = area.reduced(2, 0);
-    const auto meterBarWidth = (meterArea.getWidth() / 2.0f) - 2.0f;
-
-    const auto leftArea = meterArea.removeFromLeft(meterBarWidth);
-    meterArea.removeFromLeft(4);  // Gap between L/R
-    const auto rightArea = meterArea;
-
-    // Meter backgrounds
-    g.setColour(juce::Colours::black);
-    g.fillRect(leftArea);
-    g.fillRect(rightArea);
-
-    // Draw level bars
-    auto drawLevel = [&](juce::Rectangle<float> meterRect, float level)
-    {
-        float const dbLevel = juce::Decibels::gainToDecibels(level, -60.0f);
-        float normalized = juce::jmap(dbLevel, -60.0f, 0.0f, 0.0f, 1.0f);
-        normalized = juce::jlimit(0.0f, 1.0f, normalized);
-
-        auto levelHeight = meterRect.getHeight() * normalized;
-        auto levelRect = meterRect.removeFromBottom(levelHeight);
-
-        // Color: green → yellow → red
-        if (normalized < 0.7f)
-        {
-            g.setColour(GrainColours::kMeterGreen);
-        }
-        else if (normalized < 0.9f)
-        {
-            g.setColour(GrainColours::kMeterYellow);
-        }
-        else
-        {
-            g.setColour(GrainColours::kMeterRed);
-        }
-
-        g.fillRect(levelRect);
-    };
-
-    drawLevel(leftArea.reduced(1), levelL);
-    drawLevel(rightArea.reduced(1), levelR);
 }
 
 //==============================================================================
@@ -280,60 +207,20 @@ void GRAINAudioProcessorEditor::resized()
         {
             transportBar->setBounds(bounds.removeFromBottom(kTransportBarHeight));
         }
+
         if (waveformDisplay != nullptr)
         {
             waveformDisplay->setBounds(bounds.removeFromBottom(kWaveformHeight));
         }
     }
 
-    // Header
-    auto headerArea = bounds.removeFromTop(kHeaderHeight);
-    bypassButton.setBounds(headerArea.removeFromRight(80).reduced(10));
-
-    // Footer (secondary controls: INPUT | MIX | OUTPUT — Focus above in future subtask)
-    auto footerArea = bounds.removeFromBottom(kFooterHeight);
-    auto footerControls = footerArea.reduced(10, 5);
-
-    // Proportional widths: small=75 (50px knob), medium=110 (80px knob)
-    constexpr int kSmallKnobArea = 75;
-    constexpr int kMediumKnobArea = 110;
-
-    auto inputArea = footerControls.removeFromLeft(kSmallKnobArea);
-    inputLabel.setBounds(inputArea.removeFromTop(18));
-    inputSlider.setBounds(inputArea);
-
-    auto mixArea = footerControls.removeFromLeft(kMediumKnobArea);
-    mixLabel.setBounds(mixArea.removeFromTop(18));
-    mixSlider.setBounds(mixArea);
-
-    auto focusArea = footerControls.removeFromLeft(kSmallKnobArea);
-    focusLabel.setBounds(focusArea.removeFromTop(18));
-    focusSelector.setBounds(focusArea.reduced(5, 15));
-
-    auto outputArea = footerControls;
-    outputLabel.setBounds(outputArea.removeFromTop(18));
-    outputSlider.setBounds(outputArea.withWidth(kSmallKnobArea).withX(outputArea.getRight() - kSmallKnobArea));
-
-    // Main area (big knobs — creative controls: GRAIN + WARM)
-    auto mainArea = bounds;
-    mainArea.removeFromLeft(kMeterColumnWidth);
-    mainArea.removeFromRight(kMeterColumnWidth);
-    mainArea.reduce(10, 10);
-
-    auto knobWidth = mainArea.getWidth() / 2;
-
-    auto grainArea = mainArea.removeFromLeft(knobWidth);
-    grainLabel.setBounds(grainArea.removeFromTop(20));
-    grainSlider.setBounds(grainArea);
-
-    auto warmthArea = mainArea;
-    warmthLabel.setBounds(warmthArea.removeFromTop(20));
-    warmthSlider.setBounds(warmthArea);
+    // WebView fills everything above standalone controls
+    webView.setBounds(bounds);
 }
 
 //==============================================================================
-//==============================================================================
-// Standalone transport bar callbacks (GT-17)
+// Standalone transport bar callbacks (GT-17) — unchanged from Phase A
+
 void GRAINAudioProcessorEditor::openFileRequested()
 {
     if (filePlayer == nullptr)
@@ -535,18 +422,27 @@ void GRAINAudioProcessorEditor::loadFileIntoPlayer(const juce::File& file)
 //==============================================================================
 void GRAINAudioProcessorEditor::timerCallback()
 {
-    // Smooth meter decay
-    // NOTE: Phase A repaints entire editor at 30 FPS for simplicity.
-    // Phase B should optimize to repaint only meter areas.
+    // Don't send events until the web page has fully loaded
+    if (!webView.pageReady)
+        return;
+
+    // Read atomic meter levels from the audio thread
     float const inL = processor.inputLevelL.load();
     float const inR = processor.inputLevelR.load();
     float const outL = processor.outputLevelL.load();
     float const outR = processor.outputLevelR.load();
 
+    // Apply meter decay smoothing
     displayInputL = std::max(inL, displayInputL * kMeterDecay);
     displayInputR = std::max(inR, displayInputR * kMeterDecay);
     displayOutputL = std::max(outL, displayOutputL * kMeterDecay);
     displayOutputR = std::max(outR, displayOutputR * kMeterDecay);
 
-    repaint();
+    // Send meter update to web UI
+    juce::DynamicObject::Ptr payload = new juce::DynamicObject();
+    payload->setProperty("inL", displayInputL);
+    payload->setProperty("inR", displayInputR);
+    payload->setProperty("outL", displayOutputL);
+    payload->setProperty("outR", displayOutputR);
+    webView.emitEventIfBrowserIsVisible("meterUpdate", juce::var(payload.get()));
 }

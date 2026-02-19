@@ -24,13 +24,13 @@ TransportBar::TransportBar(FilePlayerSource& filePlayer) : player(filePlayer)
 {
     // Open button
     openButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    openButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    openButton.setColour(juce::TextButton::textColourOffId, GrainColours::kTransportButton);
     openButton.onClick = [this]() { listeners.call(&Listener::openFileRequested); };
     addAndMakeVisible(openButton);
 
     // Stop button — rewinds to start
     stopButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    stopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    stopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kTransportButton);
     stopButton.onClick = [this]()
     {
         player.stop();
@@ -41,7 +41,7 @@ TransportBar::TransportBar(FilePlayerSource& filePlayer) : player(filePlayer)
 
     // Play/Pause button
     playPauseButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    playPauseButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    playPauseButton.setColour(juce::TextButton::textColourOffId, GrainColours::kTransportButton);
     playPauseButton.onClick = [this]()
     {
         if (player.isPlaying())
@@ -60,14 +60,14 @@ TransportBar::TransportBar(FilePlayerSource& filePlayer) : player(filePlayer)
     loopButton.setClickingTogglesState(true);
     loopButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
     loopButton.setColour(juce::TextButton::buttonOnColourId, GrainColours::kAccent);
-    loopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    loopButton.setColour(juce::TextButton::textColourOffId, GrainColours::kTransportButton);
     loopButton.setColour(juce::TextButton::textColourOnId, GrainColours::kTextBright);
     loopButton.onClick = [this]() { player.setLooping(loopButton.getToggleState()); };
     addAndMakeVisible(loopButton);
 
     // Export button
     exportButton.setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
-    exportButton.setColour(juce::TextButton::textColourOffId, GrainColours::kText);
+    exportButton.setColour(juce::TextButton::textColourOffId, GrainColours::kTransportButton);
     exportButton.onClick = [this]() { listeners.call(&Listener::exportRequested); };
     addAndMakeVisible(exportButton);
 

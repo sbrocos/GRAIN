@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRAIN</title>
+    <link rel="stylesheet" href="grain-ui.css">
+</head>
+<body>
+    <div id="plugin-panel">
+        <!-- Header -->
+        <div id="header">
+            <div id="header-text">
+                <h1>GRAIN</h1>
+                <p>MICRO-HARMONIC SATURATION</p>
+            </div>
+            <div id="bypass-btn"></div>
+        </div>
+
+        <!-- Main controls wrapper (dims on bypass) -->
+        <div id="main-controls">
+            <!-- Top zone: meters + big knobs + focus -->
+            <div id="top-zone">
+                <div id="meter-in" class="meter-column"></div>
+
+                <div id="center-column">
+                    <div id="big-knobs-row">
+                        <div id="knob-grain"></div>
+                        <div id="knob-warm"></div>
+                    </div>
+                    <div id="focus-switch"></div>
+                </div>
+
+                <div id="meter-out" class="meter-column"></div>
+            </div>
+
+            <!-- Bottom row: small knobs -->
+            <div id="bottom-row">
+                <div id="knob-input" class="bottom-knob-wrapper with-gap"></div>
+                <div id="knob-mix" class="bottom-knob-wrapper"></div>
+                <div id="knob-output" class="bottom-knob-wrapper"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div id="footer">
+            <span>v1.0.0</span>
+            <span>Sergio Brocos &copy; 2025</span>
+        </div>
+    </div>
+
+    <script src="grain-ui.js"></script>
+</body>
+</html>
