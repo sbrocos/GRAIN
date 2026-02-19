@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="wmlhH7" name="GRAIN" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
+              pluginFormats="buildAU,buildStandalone,buildVST3"
+              pluginManufacturer="BrocosWave"
+              pluginManufacturerCode="BrWv" pluginCode="Grn1"
+              pluginAUMainType="'aufx'">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
       <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="DSP">
