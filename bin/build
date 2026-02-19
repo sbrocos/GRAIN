@@ -2,13 +2,15 @@
 # GRAIN — Build helper script
 # Usage: ./bin/build [options]
 #   -r, --resave      Projucer resave (regenerate BinaryData & Xcode project)
+#   -u, --au           Build AU (Audio Unit) plugin
 #   -v, --vst3        Build VST3 plugin
 #   -s, --standalone   Build Standalone application
 #   -o, --open        Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
-#   -a, --all         Resave + Build VST3 + Build Standalone + Open
+#   -a, --all         Resave + Build AU + Build VST3 + Build Standalone + Open
 #   -h, --help        Show this help message
 #
 # Examples:
+#   ./bin/build -r -u          # Resave then build AU
 #   ./bin/build -r -v          # Resave then build VST3
 #   ./bin/build -r -s -o       # Resave, build standalone, open it
 #   ./bin/build -a             # Resave + build everything + open
@@ -23,6 +25,7 @@ XCODEPROJ="$PROJECT_DIR/Builds/MacOSX/GRAIN.xcodeproj"
 STANDALONE_APP="$PROJECT_DIR/Builds/MacOSX/build/Debug/GRAIN.app"
 
 DO_RESAVE=false
+DO_AU=false
 DO_VST3=false
 DO_STANDALONE=false
 DO_OPEN=false
@@ -35,14 +38,16 @@ Usage: bin/build [options]
 
 Options:
   -r, --resave       Projucer resave (regenerate BinaryData & Xcode project)
+  -u, --au           Build AU (Audio Unit) plugin
   -v, --vst3         Build VST3 plugin
   -s, --standalone   Build Standalone application
   -o, --open         Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
-  -a, --all          Resave + Build VST3 + Build Standalone + Open
+  -a, --all          Resave + Build AU + Build VST3 + Build Standalone + Open
   -h, --help         Show this help message
 
 Examples:
   bin/build -r -v          # Resave then build VST3
+  bin/build -r -u          # Resave then build AU
   bin/build -r -s -o       # Resave, build standalone, open it
   bin/build -a             # Resave + build everything + open
 HELP
@@ -56,10 +61,11 @@ fi
 while [ $# -gt 0 ]; do
     case "$1" in
         -r|--resave)     DO_RESAVE=true ;;
+        -u|--au)         DO_AU=true ;;
         -v|--vst3)       DO_VST3=true ;;
         -s|--standalone) DO_STANDALONE=true ;;
         -o|--open)       DO_OPEN=true ;;
-        -a|--all)        DO_RESAVE=true; DO_VST3=true; DO_STANDALONE=true; DO_OPEN=true ;;
+        -a|--all)        DO_RESAVE=true; DO_AU=true; DO_VST3=true; DO_STANDALONE=true; DO_OPEN=true ;;
         -h|--help)       show_help; exit 0 ;;
         *)
             echo "Unknown option: $1"
@@ -77,6 +83,13 @@ if [ "$DO_RESAVE" = true ]; then
     "$PROJUCER" --resave "$PROJECT_DIR/GRAINTests.jucer"
     "$PROJUCER" --resave "$PROJECT_DIR/GRAIN.jucer"
     echo "Resave done."
+fi
+
+# Build AU
+if [ "$DO_AU" = true ]; then
+    echo "=== Building AU ==="
+    xcodebuild -project "$XCODEPROJ" \
+        -scheme "GRAIN - AU" -configuration Debug build | tail -5
 fi
 
 # Build VST3

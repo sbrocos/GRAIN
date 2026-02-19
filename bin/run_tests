@@ -27,19 +27,30 @@ if [ ! -d "$TESTS_XCODEPROJ" ]; then
 fi
 
 # Build GRAINTests console app
-echo "[1/2] Building GRAINTests (Debug)..."
+echo "[1/3] Building GRAINTests (Debug)..."
 xcodebuild -project "$TESTS_XCODEPROJ" \
     -scheme "GRAINTests - ConsoleApp" \
     -configuration Debug \
     build \
     -quiet
 
-echo "[2/2] Running tests..."
+echo "[2/3] Running tests..."
 echo ""
 
 # Run tests — exit code reflects pass/fail
 "$TESTS_BINARY"
 EXIT_CODE=$?
+
+echo ""
+
+# Validate AU with auval
+echo "[3/3] Running auval (AU validation)..."
+if auval -v aufx Grn1 BrWv 2>&1 | tail -3 | grep -q "AU VALIDATION SUCCEEDED"; then
+    echo "auval PASSED"
+else
+    echo "auval FAILED"
+    EXIT_CODE=1
+fi
 
 echo ""
 echo "=== Tests complete ==="
