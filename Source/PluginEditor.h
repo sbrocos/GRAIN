@@ -3,8 +3,8 @@
 
     PluginEditor.h
     GRAIN — Micro-harmonic saturation processor.
-    Plugin editor: functional layout with controls, meters, and basic styling.
-    Phase A — structure and connectivity, not final visual polish.
+    Plugin editor: HTML/CSS/JS UI via WebBrowserComponent (Phase B).
+    Uses JUCE 8 relay pattern for bidirectional APVTS ↔ Web UI sync.
 
   ==============================================================================
 */
@@ -24,14 +24,16 @@
 
 //==============================================================================
 /**
- * Plugin editor for GRAIN (Phase A — functional layout).
+ * Plugin editor for GRAIN (Phase B — WebBrowserComponent UI).
  *
- * Layout:
- *   Header:  Title "GRAIN" + Bypass button
- *   Main:    Grain (drive) + Warmth knobs (large), Input/Output meters (L/R)
- *   Footer:  Input Gain + Mix + Focus selector + Output knob (small)
+ * Renders the custom HTML/CSS/JS UI inside a WebBrowserComponent,
+ * using JUCE 8 relay classes for parameter synchronization:
+ *   - WebSliderRelay + WebSliderParameterAttachment for sliders
+ *   - WebComboBoxRelay + WebComboBoxParameterAttachment for Focus
+ *   - WebToggleButtonRelay + WebToggleButtonParameterAttachment for Bypass
  *
- * Meters use a 30 FPS timer reading atomic levels from the processor.
+ * VU meter levels are sent via custom emitEventIfBrowserIsVisible().
+ * Standalone components (transport, waveform, recorder) remain native JUCE.
  */
 class GRAINAudioProcessorEditor
     : public juce::AudioProcessorEditor
@@ -61,47 +63,50 @@ public:
 private:
     //==============================================================================
     void timerCallback() override;
-    static void drawMeter(juce::Graphics& /*g*/, juce::Rectangle<float> area, float levelL, float levelR,
-                          const juce::String& label);
 
-    // Setup helpers (reduce constructor boilerplate)
-    void setupRotarySlider(juce::Slider& slider, int textBoxWidth, int textBoxHeight, const juce::String& suffix = {});
-    void setupLabel(juce::Label& label);
+    /** Serve embedded HTML/CSS/JS resources from BinaryData. */
+    std::optional<juce::WebBrowserComponent::Resource> getResource(const juce::String& url);
 
-    GrainLookAndFeel grainLookAndFeel;
+    GrainLookAndFeel grainLookAndFeel;  // Still used by standalone native components
     GRAINAudioProcessor& processor;
 
-    // Main controls (creative — big knobs)
-    juce::Slider grainSlider;
-    juce::Slider warmthSlider;
+    //==============================================================================
+    // Web UI — Relay pattern (JUCE 8)
+    // Declaration order matters: relays → webView → attachments
 
-    // Secondary controls (utility — small knobs)
-    juce::Slider inputSlider;
-    juce::Slider mixSlider;
-    juce::ComboBox focusSelector;
-    juce::Slider outputSlider;
+    // Slider relays (one per APVTS float parameter)
+    juce::WebSliderRelay driveSliderRelay{"grainSlider"};
+    juce::WebSliderRelay warmthSliderRelay{"warmSlider"};
+    juce::WebSliderRelay inputSliderRelay{"inputSlider"};
+    juce::WebSliderRelay mixSliderRelay{"mixSlider"};
+    juce::WebSliderRelay outputSliderRelay{"outputSlider"};
 
-    // Bypass
-    juce::TextButton bypassButton{"BYPASS"};
+    // Toggle relay (bypass)
+    juce::WebToggleButtonRelay bypassToggleRelay{"bypassToggle"};
 
-    // Labels
-    juce::Label grainLabel{{}, "GRAIN"};
-    juce::Label warmthLabel{{}, "WARM"};
-    juce::Label inputLabel{{}, "INPUT"};
-    juce::Label mixLabel{{}, "MIX"};
-    juce::Label focusLabel{{}, "FOCUS"};
-    juce::Label outputLabel{{}, "OUTPUT"};
+    // ComboBox relay (focus)
+    juce::WebComboBoxRelay focusComboRelay{"focusCombo"};
 
-    // APVTS attachments
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> grainAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> warmthAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> inputAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> focusAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
+    // SinglePageBrowser: prevents navigation away from our UI
+    struct SinglePageBrowser : juce::WebBrowserComponent
+    {
+        using juce::WebBrowserComponent::WebBrowserComponent;
+        bool pageAboutToLoad(const juce::String& newURL) override;
+    };
 
-    // Meter display values (smoothed via decay)
+    SinglePageBrowser webView;
+
+    // Parameter attachments (sync relays ↔ APVTS)
+    juce::WebSliderParameterAttachment driveAttachment;
+    juce::WebSliderParameterAttachment warmthAttachment;
+    juce::WebSliderParameterAttachment inputAttachment;
+    juce::WebSliderParameterAttachment mixAttachment;
+    juce::WebSliderParameterAttachment outputAttachment;
+    juce::WebToggleButtonParameterAttachment bypassAttachment;
+    juce::WebComboBoxParameterAttachment focusAttachment;
+
+    //==============================================================================
+    // Meter display values (smoothed via decay, sent to web UI)
     float displayInputL = 0.0f, displayInputR = 0.0f;
     float displayOutputL = 0.0f, displayOutputR = 0.0f;
 

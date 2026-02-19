@@ -1,9 +1,9 @@
 # TASK 010 — Custom UI from JSX via WebBrowserComponent
 
-**Project:** GRAIN — Micro-harmonic Saturation Processor  
-**Status:** Ready  
-**Priority:** High  
-**Depends on:** TASK 008 (PluginEditor base), TASK 007 (Oversampling integration)  
+**Project:** GRAIN — Micro-harmonic Saturation Processor
+**Status:** In Progress
+**Priority:** High
+**Depends on:** TASK 008 (PluginEditor base), TASK 007 (Oversampling integration)
 **Estimated effort:** 4–6 days
 
 ---
@@ -21,14 +21,15 @@ The result must be **visually identical to the JSX mockup** (dot-style knobs, VU
 ### 2.1 In scope
 - Embed the HTML/CSS/JS UI as binary resources inside the plugin binary.
 - Render the UI via `juce::WebBrowserComponent` inside `GrainEditor`.
-- Implement a **JS ↔ C++ communication bridge** (defined in §5).
+- Implement parameter sync using **JUCE 8 relay pattern** (see §5).
 - Port all visual components from `GrainUI.jsx`:
   - Dot-style knobs: GRAIN, WARM, INPUT, MIX, OUTPUT
   - Focus switch: LOW / MID / HIGH
   - Bypass button (power icon)
   - VU Meters: IN (L/R) and OUT (L/R), animated
-- Connect knobs/switch/bypass to `APVTS` parameters.
-- Feed real meter levels from the audio thread to the UI via the bridge.
+- Connect knobs/switch/bypass to `APVTS` parameters via relay attachments.
+- Feed real meter levels from the audio thread to the UI via custom events.
+- **Standalone mode**: Keep native JUCE components (TransportBar, WaveformDisplay, AudioRecorder, drag & drop) alongside the WebBrowserComponent.
 
 ### 2.2 Out of scope (explicit)
 - Oversampling selector (2X / 4X buttons): **removed from UI** — oversampling is internal and not a user decision (per PRD §4.2).
@@ -43,39 +44,41 @@ Derived directly from `GrainUI.jsx`. No visual changes required unless noted.
 
 ### 3.1 Knobs
 
-| Label  | Param ID     | Range        | Default | Size   | Unit  |
-|--------|--------------|--------------|---------|--------|-------|
-| GRAIN  | `grain`      | 0 – 100      | 25      | large  | %     |
-| WARM   | `warmth`     | -100 – +100  | 0       | large  | %     |
-| INPUT  | `inputGain`  | -12 – +12    | 0       | normal | dB    |
-| MIX    | `mix`        | 0 – 100      | 15      | medium | %     |
-| OUTPUT | `outputGain` | -12 – +12    | 0       | normal | dB    |
+| Label  | APVTS ID     | APVTS Range  | Display Range | Size   | Unit  | Relay Name       |
+|--------|-------------|--------------|---------------|--------|-------|-----------------|
+| GRAIN  | `drive`     | 0.0–1.0      | 0–100%        | large  | %     | `grainSlider`   |
+| WARM   | `warmth`    | 0.0–1.0      | -100 to +100% | large  | %     | `warmSlider`    |
+| INPUT  | `inputGain` | -12 to +12   | -12 to +12 dB | normal | dB    | `inputSlider`   |
+| MIX    | `mix`       | 0.0–1.0      | 0–100%        | medium | %     | `mixSlider`     |
+| OUTPUT | `output`    | -12 to +12   | -12 to +12 dB | normal | dB    | `outputSlider`  |
 
-Dot ring: 21–35 dots (size-dependent), active dots in `#d97706` (amber), inactive in `#1a1a1a`.  
-Interaction: HTML `<input type="range">` hidden under the knob SVG (as in JSX). No custom drag logic needed in JS.
+Dot ring: 21–35 dots (size-dependent), active dots in `#d97706` (amber), inactive in `#1a1a1a`.
+Interaction: HTML `<input type="range">` hidden under the knob SVG (as in JSX). Range input works with normalized 0–1 values; display values computed by JS `displayFn`.
 
 ### 3.2 Focus Switch
 
-Three-segment toggle: LOW / MID / HIGH.  
-Param ID: `focus` (0 = Low, 1 = Mid, 2 = High).  
+Three-segment toggle: LOW / MID / HIGH.
+APVTS ID: `focus` (AudioParameterChoice: 0 = Low, 1 = Mid, 2 = High).
+Relay: `WebComboBoxRelay("focusCombo")` + `WebComboBoxParameterAttachment`.
 Active segment background: `#d97706`. Inactive: transparent on `#1a1a1a` base.
 
 ### 3.3 Bypass Button
 
-Circular, power icon (SVG inline).  
-State: active = amber glow (`#d97706`), bypassed = dark (`#1a1a1a`).  
-Does **not** map to an `APVTS` parameter — managed as plugin bypass via `AudioProcessor::setBypass()` or equivalent.
+Circular, power icon (SVG inline).
+State: active = amber glow (`#d97706`), bypassed = dark (`#1a1a1a`).
+APVTS ID: `bypass` (AudioParameterBool). Managed via `WebToggleButtonRelay("bypassToggle")` + `WebToggleButtonParameterAttachment`.
+When bypassed, main controls area dims to 40% opacity.
 
 ### 3.4 VU Meters
 
-Two pairs (IN L/R, OUT L/R). Each bar: 32 segments, vertical, bottom-to-top.  
+Two pairs (IN L/R, OUT L/R). Each bar: 32 segments, vertical, bottom-to-top.
 Segment colors:
 - Green `#22c55e` for 0–75%
 - Yellow `#eab308` for 75–90%
 - Red `#ef4444` for 90–100%
 
-Update rate: ~15 ms (driven by bridge events from audio thread — see §5.3).  
-In bypass mode: both meters show near-zero (residual ~5% static level).
+Update rate: ~16 ms (60 Hz timer, driven by `emitEventIfBrowserIsVisible("meterUpdate", ...)` custom event).
+Meter decay applied in C++ (`kMeterDecay = 0.85f`) before sending to JS.
 
 ### 3.5 Layout
 
@@ -94,6 +97,7 @@ In bypass mode: both meters show near-zero (residual ~5% static level).
 ```
 
 Background: `#B6C1B9` (sage green panel). Outer: `#8a9a91`.
+Window size: **480 × 480** (plugin), **480 × 650** (standalone with transport + waveform).
 
 ---
 
@@ -102,107 +106,112 @@ Background: `#B6C1B9` (sage green panel). Outer: `#8a9a91`.
 ```
 GRAIN/
 ├── Source/
-│   ├── PluginEditor.h          ← hosts WebBrowserComponent
+│   ├── PluginEditor.h          ← hosts WebBrowserComponent + relays + attachments
 │   ├── PluginEditor.cpp
 │   └── UI/
-│       ├── GrainWebBridge.h    ← NEW: JS↔C++ bridge interface
-│       ├── GrainWebBridge.cpp
+│       ├── GrainLookAndFeel.h  ← kept (standalone native components)
+│       ├── GrainLookAndFeel.cpp
 │       └── Resources/
-│           ├── index.html      ← entry point (inlined or loaded via BinaryData)
-│           ├── grain-ui.js     ← UI logic (ported from JSX, vanilla JS + CSS)
+│           ├── index.html      ← entry point (served via ResourceProvider)
+│           ├── grain-ui.js     ← UI logic (relay state adapters + components)
 │           └── grain-ui.css    ← styles (extracted from JSX inline styles)
-└── Resources/                  ← Projucer binary resources
-    └── UI/                     ← (mirrored from Source/UI/Resources)
 ```
 
-> **Note on JSX → Vanilla JS:** `GrainUI.jsx` uses React for state management. Since `WebBrowserComponent` renders HTML directly (no React runtime needed), the port replaces:
-> - `useState` → plain JS variables + DOM manipulation
-> - `useEffect` (meter animation) → `setInterval` in JS, data injected via bridge
-> - `Array.from().map()` SVG dots → generated once on init, updated via class toggle
+> **Note:** No separate `GrainWebBridge.h/cpp` is needed. The relay + attachment pattern handles all parameter sync automatically. Bridge logic is embedded directly in `PluginEditor`.
+
+> **Note on JSX → Vanilla JS:** `GrainUI.jsx` uses React for state management. The port replaces:
+> - `useState` → `SliderState`/`ToggleState`/`ComboBoxState` relay adapters
+> - `useEffect` (meter animation) → `window.__JUCE__.backend.addEventListener("meterUpdate", ...)`
+> - `Array.from().map()` SVG dots → generated once on init, updated via `setAttribute("fill", ...)`
 
 ---
 
 ## 5. JS ↔ C++ Communication Bridge
 
-This is the most critical architectural decision of the task.
+### 5.1 Architecture: JUCE 8 Relay Pattern
 
-### 5.1 Mechanism: `juce::WebBrowserComponent` Native API (JUCE 7+)
+Instead of a custom event protocol, we use **JUCE 8's built-in relay classes** for parameter synchronization. This is the official JUCE approach (demonstrated in `JUCE/examples/Plugins/WebViewPluginDemo.h`).
 
-JUCE 7 introduces `WebBrowserComponent::Options` with `withNativeIntegration()` that exposes a native event bus:
+**C++ side** (in `PluginEditor`):
 
 ```cpp
-// C++ side — send event TO the browser
-webComponent.emitEventIfBrowserIsVisible("paramChanged", payloadVar);
+// 1. Declare relays (members, before webView)
+juce::WebSliderRelay       driveSliderRelay  { "grainSlider" };
+juce::WebToggleButtonRelay bypassToggleRelay { "bypassToggle" };
+juce::WebComboBoxRelay     focusComboRelay   { "focusCombo" };
 
-// C++ side — receive events FROM the browser
-webComponent.getNativeEventListener().addListener([this](const juce::var& event) {
-    handleBrowserEvent(event);
-});
+// 2. Build WebBrowserComponent options chaining .withOptionsFrom()
+SinglePageBrowser webView { juce::WebBrowserComponent::Options{}
+    .withNativeIntegrationEnabled()
+    .withOptionsFrom(driveSliderRelay)
+    .withOptionsFrom(bypassToggleRelay)
+    .withOptionsFrom(focusComboRelay)
+    .withResourceProvider([this](const auto& url) { return getResource(url); })
+};
+
+// 3. Create parameter attachments (members, after webView)
+juce::WebSliderParameterAttachment driveAttachment {
+    *apvts.getParameter("drive"), driveSliderRelay
+};
 ```
+
+**JS side** (vanilla, no build step — relay adapters replicated from JUCE's `index.js`):
 
 ```js
-// JS side — receive event from C++
-window.__JUCE__.backend.addEventListener("paramChanged", (event) => {
-    updateKnob(event.paramId, event.value);
-});
-
-// JS side — send event to C++
-window.__JUCE__.backend.emitEvent("paramChange", { paramId: "grain", value: 42 });
+// SliderState adapter talks to relay via __juce__slider<name> events
+class SliderState {
+    constructor(name) {
+        this.identifier = "__juce__slider" + name;
+        window.__JUCE__.backend.addEventListener(this.identifier, (e) => this._handle(e));
+    }
+    setNormalisedValue(norm) { /* emit valueChanged event */ }
+    getNormalisedValue() { /* compute from scaled value */ }
+    sliderDragStarted() { /* emit sliderDragStarted event */ }
+    sliderDragEnded() { /* emit sliderDragEnded event */ }
+}
 ```
 
-> ⚠️ **JUCE version check:** Verify that the project's JUCE version supports `WebBrowserComponent::Options::withNativeIntegration()`. If not (JUCE < 7), fall back to the `evaluateJavascript` + URL scheme approach (see §5.4 fallback).
+### 5.2 Why Relays Over Custom Events
 
-### 5.2 Event Protocol
+| Feature | Relay Pattern | Custom Events |
+|---------|:---:|:---:|
+| Automatic APVTS sync | Yes | Manual |
+| Undo manager support | Yes | Manual |
+| DAW gesture tracking (drag start/end) | Yes | Manual |
+| Parameter properties (range, skew, label) sent to JS | Yes | Manual |
+| DAW parameter hover highlighting | Yes | No |
+| No separate bridge class needed | Yes | No |
 
-All events are JSON objects serialized as `juce::var` / `juce::DynamicObject`.
+### 5.3 Meter Update Strategy (Custom Event)
 
-#### C++ → JS Events
-
-| Event name       | Payload                                      | When                          |
-|------------------|----------------------------------------------|-------------------------------|
-| `paramChanged`   | `{ paramId: string, value: number }`         | APVTS listener fires          |
-| `meterUpdate`    | `{ inL: float, inR: float, outL: float, outR: float }` | ~15ms timer in editor  |
-| `bypassChanged`  | `{ bypassed: bool }`                         | Bypass state changes          |
-| `initState`      | Full params snapshot (all 6 + bypass)        | Page load complete            |
-
-#### JS → C++ Events
-
-| Event name       | Payload                                      | Action                        |
-|------------------|----------------------------------------------|-------------------------------|
-| `paramChange`    | `{ paramId: string, value: number }`         | Set APVTS parameter           |
-| `bypassChange`   | `{ bypassed: bool }`                         | Toggle plugin bypass          |
-| `uiReady`        | `{}`                                         | Triggers `initState` send     |
-
-### 5.3 Meter Update Strategy
-
-VU meter levels come from the **audio thread** and must reach the UI safely:
+VU meters are **not** parameters — they use a custom event, not relays:
 
 ```
 Audio thread → RMS values written to std::atomic<float> (x4)
                          ↓
-Editor timer (juce::Timer, ~15ms) reads atomics
+Editor timer (juce::Timer, 60 Hz) reads atomics + applies decay
                          ↓
-emitEventIfBrowserIsVisible("meterUpdate", payload)
+emitEventIfBrowserIsVisible("meterUpdate", {inL, inR, outL, outR})
                          ↓
 JS updates DOM segment colors
 ```
 
-This avoids any audio-thread → UI direct calls.
+### 5.4 Resource Serving (ResourceProvider)
 
-### 5.4 Fallback: JUCE < 7 (evaluateJavascript)
-
-If native integration is unavailable:
+HTML/CSS/JS files are embedded as BinaryData via Projucer (`resource="1"`) and served through `WebBrowserComponent::ResourceProvider`:
 
 ```cpp
-// C++ → JS: inject directly
-webComponent.evaluateJavascript("window.grain.onParamChanged('grain', 42)");
-
-// JS → C++: use custom URL scheme
-// JS calls: window.location.href = "grain://paramChange?id=grain&value=42"
-// C++ overrides: bool pageAboutToLoad(const String& url) { parseGrainScheme(url); return false; }
+std::optional<juce::WebBrowserComponent::Resource>
+getResource(const juce::String& url) {
+    // url == "/" → serve index.html
+    // url == "/grain-ui.js" → serve grain-ui.js
+    // Reads from BinaryData::index_html, BinaryData::grainui_js, etc.
+}
 ```
 
-Use this only as fallback — native integration is cleaner and bidirectional.
+Navigate to: `webView.goToURL(juce::WebBrowserComponent::getResourceProviderRoot())`.
+
+On macOS this resolves to `juce://juce.backend/`.
 
 ---
 
@@ -211,73 +220,56 @@ Use this only as fallback — native integration is cleaner and bidirectional.
 ### 6.1 Knob Component
 
 ```js
-// JSX Knob → JS class
 class DotKnob {
-  constructor(container, { label, min, max, defaultValue, unit, size }) {
-    this.value = defaultValue;
-    this.min = min; this.max = max; this.unit = unit;
-    this.dots = []; // SVG circle elements
-    this._buildDOM(container, label, size);
-    this._buildDots();
-    this.setValue(defaultValue);
-  }
+    constructor(container, { relayName, label, size, displayFn }) {
+        this.state = new SliderState(relayName);
+        this._buildDOM(container, label, size);
+        this.state.addValueListener(() => this._updateVisual());
+        this.state.requestInitialUpdate();
+    }
 
-  setValue(v) {
-    this.value = v;
-    const norm = (v - this.min) / (this.max - this.min);
-    const angle = -135 + norm * 270;
-    this.knobBody.style.transform = `rotate(${angle}deg)`;
-    const activeDots = Math.round(norm * (this.dots.length - 1));
-    this.dots.forEach((dot, i) => {
-      dot.setAttribute("fill", i <= activeDots ? "#d97706" : "#1a1a1a");
-    });
-    this.valueLabel.textContent = v > 0 && this.unit !== "%" ? `+${v}${this.unit}` : `${v}${this.unit}`;
-  }
-
-  // Input range onChange → emits paramChange event to C++
-  _onInput(e) {
-    const v = parseFloat(e.target.value);
-    this.setValue(v);
-    window.__JUCE__.backend.emitEvent("paramChange", { paramId: this.paramId, value: v });
-  }
+    _updateVisual() {
+        const norm = this.state.getNormalisedValue();
+        const angle = -135 + norm * 270;
+        this.knobBody.style.transform = `rotate(${angle}deg)`;
+        // Update dots, value label...
+    }
 }
 ```
 
 ### 6.2 Meter Update
 
 ```js
-// Driven by meterUpdate events from C++
-window.__JUCE__.backend.addEventListener("meterUpdate", ({ inL, inR, outL, outR }) => {
-  updateMeterBar(inMeterEl, inL, inR);
-  updateMeterBar(outMeterEl, outL, outR);
+window.__JUCE__.backend.addEventListener("meterUpdate", (data) => {
+    inMeter.update(data.inL, data.inR);
+    outMeter.update(data.outL, data.outR);
 });
+```
 
-function updateMeterBar(el, levelL, levelR) {
-  const segments = 32;
-  el.querySelectorAll(".seg-l").forEach((seg, i) => {
-    seg.style.backgroundColor = getSegColor(i, i < Math.round(levelL * segments), segments);
-  });
-  // same for R channel
+### 6.3 Focus Switch
+
+```js
+class FocusSwitch {
+    constructor(container) {
+        this.state = new ComboBoxState("focusCombo");
+        // Build LOW/MID/HIGH buttons
+        this.state.addValueListener(() => this._updateVisual());
+        this.state.requestInitialUpdate();
+    }
 }
 ```
 
-### 6.3 Init Handshake
+### 6.4 Bypass Button
 
 ```js
-// On page load
-window.addEventListener("load", () => {
-  window.__JUCE__.backend.emitEvent("uiReady", {});
-});
-
-window.__JUCE__.backend.addEventListener("initState", (state) => {
-  grainKnob.setValue(state.grain);
-  warmKnob.setValue(state.warmth);
-  inputKnob.setValue(state.inputGain);
-  mixKnob.setValue(state.mix);
-  outputKnob.setValue(state.outputGain);
-  focusSwitch.setValue(state.focus);
-  bypassBtn.setState(state.bypassed);
-});
+class BypassButton {
+    constructor(container) {
+        this.state = new ToggleState("bypassToggle");
+        // Build power icon SVG button
+        this.state.addValueListener(() => this._updateVisual());
+        this.state.requestInitialUpdate();
+    }
+}
 ```
 
 ---
@@ -285,93 +277,63 @@ window.__JUCE__.backend.addEventListener("initState", (state) => {
 ## 7. C++ Integration in PluginEditor
 
 ```cpp
-class GrainEditor : public juce::AudioProcessorEditor,
-                    private juce::Timer,
-                    private juce::AudioProcessorValueTreeState::Listener
+class GRAINAudioProcessorEditor : public juce::AudioProcessorEditor,
+    public juce::FileDragAndDropTarget,     // standalone drag & drop
+    public FilePlayerSource::Listener,       // standalone export workflow
+    private juce::Timer,                     // meter updates
+    private TransportBar::Listener           // standalone transport
 {
-public:
-    GrainEditor(GrainProcessor& p)
-        : AudioProcessorEditor(p), processor(p),
-          webView(juce::WebBrowserComponent::Options{}
-                      .withNativeIntegration()
-                      .withEventListener("paramChange",    [this](auto& e) { onParamChange(e); })
-                      .withEventListener("bypassChange",   [this](auto& e) { onBypassChange(e); })
-                      .withEventListener("uiReady",        [this](auto& e) { sendInitState(); }))
-    {
-        addAndMakeVisible(webView);
-        webView.goToURL(getUIResourceURL());   // loads embedded index.html
-        processor.apvts.addParameterListener("grain",      this);
-        processor.apvts.addParameterListener("warmth",     this);
-        // ... all 5 params
-        startTimerHz(66); // ~15ms for meter updates
-        setSize(480, 520);
+    // === Relays (declared BEFORE webView) ===
+    juce::WebSliderRelay       driveSliderRelay  {"grainSlider"};
+    juce::WebSliderRelay       warmthSliderRelay {"warmSlider"};
+    juce::WebSliderRelay       inputSliderRelay  {"inputSlider"};
+    juce::WebSliderRelay       mixSliderRelay    {"mixSlider"};
+    juce::WebSliderRelay       outputSliderRelay {"outputSlider"};
+    juce::WebToggleButtonRelay bypassToggleRelay {"bypassToggle"};
+    juce::WebComboBoxRelay     focusComboRelay   {"focusCombo"};
+
+    // === WebView (declared AFTER relays) ===
+    SinglePageBrowser webView;  // Options built with withOptionsFrom() for all relays
+
+    // === Attachments (declared AFTER webView) ===
+    juce::WebSliderParameterAttachment       driveAttachment;
+    juce::WebSliderParameterAttachment       warmthAttachment;
+    juce::WebSliderParameterAttachment       inputAttachment;
+    juce::WebSliderParameterAttachment       mixAttachment;
+    juce::WebSliderParameterAttachment       outputAttachment;
+    juce::WebToggleButtonParameterAttachment bypassAttachment;
+    juce::WebComboBoxParameterAttachment     focusAttachment;
+
+    // === Timer for meters ===
+    void timerCallback() override {
+        // Read atomics, apply decay, emitEventIfBrowserIsVisible("meterUpdate", ...)
     }
 
-private:
-    void timerCallback() override
-    {
-        auto& src = processor.getMeterLevels(); // std::atomic<float>[4]
-        juce::DynamicObject payload;
-        payload.setProperty("inL",  src[0].load());
-        payload.setProperty("inR",  src[1].load());
-        payload.setProperty("outL", src[2].load());
-        payload.setProperty("outR", src[3].load());
-        webView.emitEventIfBrowserIsVisible("meterUpdate", juce::var(&payload));
-    }
-
-    void parameterChanged(const juce::String& paramId, float newValue) override
-    {
-        juce::DynamicObject payload;
-        payload.setProperty("paramId", paramId);
-        payload.setProperty("value",   newValue);
-        webView.emitEventIfBrowserIsVisible("paramChanged", juce::var(&payload));
-    }
-
-    void onParamChange(const juce::var& event)
-    {
-        auto paramId = event["paramId"].toString();
-        auto value   = static_cast<float>(event["value"]);
-        if (auto* param = processor.apvts.getParameter(paramId))
-            param->setValueNotifyingHost(param->convertTo0to1(value));
-    }
-
-    void sendInitState()
-    {
-        juce::DynamicObject state;
-        state.setProperty("grain",      getParamValue("grain"));
-        state.setProperty("warmth",     getParamValue("warmth"));
-        state.setProperty("inputGain",  getParamValue("inputGain"));
-        state.setProperty("mix",        getParamValue("mix"));
-        state.setProperty("outputGain", getParamValue("outputGain"));
-        state.setProperty("focus",      getParamValue("focus"));
-        state.setProperty("bypassed",   processor.isBypassed());
-        webView.emitEventIfBrowserIsVisible("initState", juce::var(&state));
-    }
-
-    juce::WebBrowserComponent webView;
-    GrainProcessor& processor;
+    // === Standalone members (unchanged from Phase A) ===
+    // FilePlayerSource, TransportBar, WaveformDisplay, AudioRecorder, drag & drop
 };
 ```
+
+**Declaration order is critical**: Relays → webView → attachments (C++ destructor order).
 
 ---
 
 ## 8. Resource Embedding
 
-HTML/CSS/JS files must be embedded into the binary via Projucer's **Binary Resources** panel, accessed at runtime via `BinaryData`:
+HTML/CSS/JS files are added to `GRAIN.jucer` under `Source/UI/Resources/` with `resource="1"`:
 
-```cpp
-// In PluginEditor — load embedded HTML
-juce::String getUIResourceURL()
-{
-    // Write to temp file on first load (or use data URI)
-    auto html = juce::String::fromUTF8(BinaryData::index_html, BinaryData::index_htmlSize);
-    // Option A: data URI (simple, no file I/O)
-    return "data:text/html;charset=utf-8," + juce::URL::addEscapeChars(html, false);
-    // Option B: write to appDataDir/grain_ui/ and return file:// URL
-}
+```xml
+<GROUP name="Resources">
+    <FILE id="IndexHtml" name="index.html" compile="0" resource="1"
+          file="Source/UI/Resources/index.html"/>
+    <FILE id="GrainUiJs" name="grain-ui.js" compile="0" resource="1"
+          file="Source/UI/Resources/grain-ui.js"/>
+    <FILE id="GrainUiCss" name="grain-ui.css" compile="0" resource="1"
+          file="Source/UI/Resources/grain-ui.css"/>
+</GROUP>
 ```
 
-> **Recommendation:** Use a **temp file approach** (Option B) for development to allow hot-reload during iteration, then switch to the data URI approach for release. The `index.html` can reference `grain-ui.js` and `grain-ui.css` as relative paths when serving from a directory.
+Projucer generates `BinaryData::index_html`, `BinaryData::grainui_js`, `BinaryData::grainui_css`.
 
 ---
 
@@ -388,42 +350,33 @@ juce::String getUIResourceURL()
 | 7 | Meters go near-zero in bypass | Visual check |
 | 8 | Reloading the plugin window restores correct param state | Close/reopen editor |
 | 9 | No oversampling controls visible in UI | Visual inspection |
-| 10 | Plugin passes `pluginval --strictness-level 10` | CI/CD pipeline |
+| 10 | Plugin passes `pluginval --skip-gui-tests` | CI/CD pipeline |
+| 11 | Standalone: transport, waveform, recorder, drag & drop work | Manual test |
+| 12 | All 95 unit tests still pass | `./scripts/run_tests.sh` |
 
 ---
 
 ## 10. Implementation Order
 
 ```
-Day 1 — Setup
-  ├── Add WebBrowserComponent to PluginEditor (replaces native sliders)
-  ├── Verify JUCE version supports withNativeIntegration()
-  └── Minimal index.html loads and renders inside editor window
+Step 1 — HTML/CSS/JS Resources
+  ├── Create index.html (structural divs)
+  ├── Create grain-ui.css (all styles from JSX)
+  └── Create grain-ui.js (relay adapters + DotKnob + MeterBar + FocusSwitch + BypassButton)
 
-Day 2 — Bridge
-  ├── Implement GrainWebBridge (event send/receive skeleton)
-  ├── uiReady → initState handshake working
-  └── Console log events in browser (debug mode)
+Step 2 — PluginEditor Rewrite
+  ├── PluginEditor.h: relays + SinglePageBrowser + attachments + meter members
+  └── PluginEditor.cpp: constructor (Options), resource provider, timerCallback, layout
 
-Day 3 — Knobs + Focus
-  ├── Port Knob class from JSX to vanilla JS
-  ├── All 5 knobs render with correct dot scales
-  └── Knob drag → paramChange → APVTS verified
+Step 3 — GRAIN.jucer Update
+  ├── Add 3 resource files with resource="1"
+  └── Projucer resave (GRAINTests first, then GRAIN)
 
-Day 4 — Meters + Bypass
-  ├── Expose MeterLevels atomics from GrainProcessor
-  ├── Timer → meterUpdate events → meter DOM updates
-  └── Bypass button → bypassChange event → processor bypass
-
-Day 5 — Polish + Edge Cases
-  ├── Init state on editor reopen
-  ├── APVTS → paramChanged → knob visual sync (DAW automation)
-  └── Style QA against JSX reference
-
-Day 6 — Validation
-  ├── pluginval run
-  ├── Full acceptance criteria checklist
-  └── Document known limitations / next steps
+Step 4 — Build & Validate
+  ├── Build VST3 + Standalone
+  ├── Run unit tests (95 tests)
+  ├── Run pluginval
+  └── Visual QA against JSX reference
 ```
 
 ---
@@ -432,25 +385,24 @@ Day 6 — Validation
 
 | Risk | Likelihood | Mitigation |
 |------|------------|------------|
-| JUCE version doesn't support `withNativeIntegration()` | Medium | Implement `evaluateJavascript` fallback (§5.4) as parallel path |
-| macOS WebKit sandboxing blocks local file access | Low | Use data URI approach for HTML embedding |
-| Meter update performance at 66Hz degrades audio | Low | Atomics + timer pattern is decoupled from audio thread |
-| Knob feel differs from native JUCE sliders | N/A | JSX already uses `<input type="range">` — identical feel |
-| Hot-reload workflow slow during JS iteration | Medium | Serve from localhost during dev (`http://localhost:3000`), switch to embedded for release |
+| BinaryData naming (hyphens → underscores) | Low | Verified: `grainui_js`, `grainui_css`, `index_html` |
+| Hidden `<input type="range">` feels wrong vs rotary knob | Medium | Can implement custom JS mouse drag for vertical-to-rotation mapping |
+| WebBrowserComponent consumes drag events in standalone | Low | `FileDragAndDropTarget` is on the editor, not the webView |
+| Relay `requestInitialUpdate` timing | Low | Relay system handles this automatically via `sendInitialUpdate()` |
+| Meter emission thread safety | None | `emitEventIfBrowserIsVisible` called from Timer (message thread) |
 
 ---
 
 ## 12. Dev Workflow Tip
 
-During JS development, run the Vite dev server from the original JSX repo and point `GrainEditor` to `http://localhost:5173` instead of the embedded resource. This enables **hot module reload** without recompiling the plugin.
+During JS development, use the ResourceProvider's `allowedOriginIn` parameter to allow a localhost dev server:
 
 ```cpp
-#if JUCE_DEBUG
-    webView.goToURL("http://localhost:5173");  // Vite dev server
-#else
-    webView.goToURL(getEmbeddedResourceURL()); // Production binary
-#endif
+.withResourceProvider([this](const auto& url) { return getResource(url); },
+                      "http://localhost:5173")  // Vite dev server origin
 ```
+
+Then navigate to `http://localhost:5173` instead of `getResourceProviderRoot()` during development.
 
 ---
 

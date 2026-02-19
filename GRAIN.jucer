@@ -51,6 +51,14 @@
               resource="0" file="Source/UI/GrainLookAndFeel.h"/>
         <FILE id="GrainLookAndFeelCpp" name="GrainLookAndFeel.cpp" compile="1"
               resource="0" file="Source/UI/GrainLookAndFeel.cpp"/>
+        <GROUP id="{D2E3F4A5-B6C7-8901-DEFA-BC2345678901}" name="Resources">
+          <FILE id="IndexHtml" name="index.html" compile="0"
+                resource="1" file="Source/UI/Resources/index.html"/>
+          <FILE id="GrainUiJs" name="grain-ui.js" compile="0"
+                resource="1" file="Source/UI/Resources/grain-ui.js"/>
+          <FILE id="GrainUiCss" name="grain-ui.css" compile="0"
+                resource="1" file="Source/UI/Resources/grain-ui.css"/>
+        </GROUP>
       </GROUP>
       <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
