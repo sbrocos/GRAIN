@@ -2,8 +2,8 @@
   ==============================================================================
 
     GrainLookAndFeel.cpp
-    GRAIN — Custom LookAndFeel with dot-style rotary knobs.
-    Implementation based on the approved JSX mockup.
+    GRAIN — Custom LookAndFeel: dot-style knobs, LED bypass, focus buttons,
+    editable value fields. Pixel-perfect match to GrainUI.jsx mockup.
 
   ==============================================================================
 */
@@ -26,19 +26,16 @@ GrainLookAndFeel::GrainLookAndFeel()
     setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
     setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
 
-    // ComboBox (Focus selector — until replaced by TextButtons in subtask 5)
-    setColour(juce::ComboBox::backgroundColourId, GrainColours::kSurface);
-    setColour(juce::ComboBox::textColourId, GrainColours::kTextBright);
-    setColour(juce::ComboBox::arrowColourId, GrainColours::kTextMuted);
-    setColour(juce::ComboBox::outlineColourId, GrainColours::kSurfaceLight);
+    // TextEditor colors (for editable slider value fields)
+    setColour(juce::TextEditor::textColourId, GrainColours::kText);
+    setColour(juce::TextEditor::backgroundColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::highlightColourId, GrainColours::kAccent.withAlpha(0.3f));
+    setColour(juce::TextEditor::highlightedTextColourId, GrainColours::kText);
+    setColour(juce::TextEditor::outlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
+    setColour(juce::CaretComponent::caretColourId, GrainColours::kAccent);
 
-    // PopupMenu (for ComboBox dropdown)
-    setColour(juce::PopupMenu::backgroundColourId, GrainColours::kSurface);
-    setColour(juce::PopupMenu::textColourId, GrainColours::kTextBright);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, GrainColours::kAccent);
-    setColour(juce::PopupMenu::highlightedTextColourId, GrainColours::kTextBright);
-
-    // TextButton (Bypass — until restyled in subtask 4)
+    // TextButton defaults
     setColour(juce::TextButton::buttonColourId, GrainColours::kSurface);
     setColour(juce::TextButton::buttonOnColourId, GrainColours::kAccent);
     setColour(juce::TextButton::textColourOffId, GrainColours::kTextBright);
@@ -48,22 +45,149 @@ GrainLookAndFeel::GrainLookAndFeel()
 //==============================================================================
 void GrainLookAndFeel::drawLabel(juce::Graphics& g, juce::Label& label)
 {
-    // Only draw text, skip background/outline entirely
+    // Skip drawing when being edited (TextEditor takes over)
     if (label.isBeingEdited())
     {
         return;
     }
 
-    auto textColour = label.findColour(juce::Label::textColourId);
-    g.setColour(textColour);
+    g.setColour(label.findColour(juce::Label::textColourId));
     g.setFont(label.getFont());
     g.drawText(label.getText(), label.getLocalBounds().toFloat(), label.getJustificationType(), false);
 }
 
 //==============================================================================
-juce::Font GrainLookAndFeel::getSliderFont()
+juce::Label* GrainLookAndFeel::createSliderTextBox(juce::Slider& slider)
 {
-    return {juce::FontOptions("Roboto", 14.0f, juce::Font::plain)};
+    auto* label = LookAndFeel_V4::createSliderTextBox(slider);
+
+    label->setJustificationType(juce::Justification::centred);
+
+    // When the Label spawns a TextEditor, reset its internal padding so
+    // the editable text doesn't shift relative to the static label text.
+    label->onEditorShow = [label]()
+    {
+        if (auto* editor = label->getCurrentTextEditor())
+        {
+            editor->setBorder(juce::BorderSize<int>(0));
+            editor->setIndents(0, 0);
+            editor->setJustification(juce::Justification::centred);
+        }
+    };
+
+    return label;
+}
+
+//==============================================================================
+void GrainLookAndFeel::fillTextEditorBackground(juce::Graphics& /*g*/, int /*width*/, int /*height*/,
+                                                juce::TextEditor& /*editor*/)
+{
+    // Transparent — editing looks like inline text, not a text field
+}
+
+void GrainLookAndFeel::drawTextEditorOutline(juce::Graphics& g, int width, int height, juce::TextEditor& editor)
+{
+    // Subtle orange outline only when focused (actively editing)
+    if (editor.hasKeyboardFocus(true))
+    {
+        g.setColour(GrainColours::kAccent.withAlpha(0.5f));
+        g.drawRoundedRectangle(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height), 2.0f, 1.0f);
+    }
+}
+
+//==============================================================================
+// NOLINTNEXTLINE(readability-function-size) — multiple button styles via componentID dispatch
+void GrainLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                                            const juce::Colour& backgroundColour, bool shouldDrawButtonAsHighlighted,
+                                            bool shouldDrawButtonAsDown)
+{
+    auto bounds = button.getLocalBounds().toFloat();
+
+    if (button.getComponentID() == "bypass")
+    {
+        const bool isBypassed = button.getToggleState();
+
+        if (!isBypassed)
+        {
+            // Processing: orange outer glow
+            g.setColour(GrainColours::kBypassOn.withAlpha(0.3f));
+            g.fillEllipse(bounds.expanded(2.0f));
+        }
+
+        // Circle body
+        g.setColour(isBypassed ? GrainColours::kBypassOff : GrainColours::kBypassOn);
+        g.fillEllipse(bounds.reduced(1.0f));
+
+        if (isBypassed)
+        {
+            // Inset shadow effect
+            g.setColour(juce::Colours::black.withAlpha(0.4f));
+            g.drawEllipse(bounds.reduced(2.0f), 1.5f);
+        }
+
+        return;
+    }
+
+    if (button.getComponentID() == "focusButton")
+    {
+        const bool isActive = button.getToggleState();
+
+        if (isActive)
+        {
+            g.setColour(GrainColours::kAccent);
+            g.fillRoundedRectangle(bounds, 4.0f);
+        }
+        // Inactive: transparent (no fill)
+
+        return;
+    }
+
+    // Default fallback
+    LookAndFeel_V4::drawButtonBackground(g, button, backgroundColour, shouldDrawButtonAsHighlighted,
+                                         shouldDrawButtonAsDown);
+}
+
+void GrainLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool shouldDrawButtonAsHighlighted,
+                                      bool shouldDrawButtonAsDown)
+{
+    if (button.getComponentID() == "bypass")
+    {
+        const bool isBypassed = button.getToggleState();
+        auto bounds = button.getLocalBounds().toFloat();
+        auto centre = bounds.getCentre();
+        const float iconSize = bounds.getWidth() * 0.4f;
+
+        // Power icon: vertical line + 3/4 arc
+        juce::Path powerIcon;
+
+        // Vertical line (top segment)
+        powerIcon.startNewSubPath(centre.x, centre.y - iconSize);
+        powerIcon.lineTo(centre.x, centre.y - (iconSize * 0.2f));
+
+        // Arc (open at top)
+        const float arcRadius = iconSize * 0.7f;
+        powerIcon.addArc(centre.x - arcRadius, centre.y - arcRadius, arcRadius * 2.0f, arcRadius * 2.0f,
+                         -juce::MathConstants<float>::pi * 0.75f, juce::MathConstants<float>::pi * 0.75f, true);
+
+        g.setColour(isBypassed ? juce::Colour(0xff666666) : juce::Colours::white);
+        g.strokePath(powerIcon,
+                     juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+        return;
+    }
+
+    if (button.getComponentID() == "focusButton")
+    {
+        const bool isActive = button.getToggleState();
+        g.setColour(isActive ? GrainColours::kTextBright : GrainColours::kTextMuted);
+        g.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Bold")));
+        g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
+
+        return;
+    }
+
+    // Default fallback
+    LookAndFeel_V4::drawButtonText(g, button, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
 }
 
 //==============================================================================
@@ -89,7 +213,7 @@ struct KnobSizeParams
         {
             return {24, 3.5f, 40.0f, 4.0f, 16.0f};  // Medium: MIX
         }
-        return {21, 2.5f, 25.0f, 3.0f, 10.0f};  // Small: INPUT, OUTPUT
+        return {21, 3.0f, 25.0f, 3.0f, 10.0f};  // Small: INPUT, OUTPUT (dotRadius 3.0 per JSX)
     }
 };
 

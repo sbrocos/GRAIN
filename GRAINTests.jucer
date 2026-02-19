@@ -24,6 +24,8 @@
             resource="0" file="Source/Tests/DragDropTest.cpp"/>
       <FILE id="RecorderTestCpp" name="RecorderTest.cpp" compile="1"
             resource="0" file="Source/Tests/RecorderTest.cpp"/>
+      <FILE id="UIComponentTestsCpp" name="UIComponentTests.cpp" compile="1"
+            resource="0" file="Source/Tests/UIComponentTests.cpp"/>
     </GROUP>
     <GROUP id="{T1000002-0000-0000-0000-000000000002}" name="DSP">
       <FILE id="tCalibrationConfigH" name="CalibrationConfig.h" compile="0"
@@ -66,6 +68,22 @@
             resource="0" file="Source/Standalone/AudioRecorder.cpp"/>
       <FILE id="tGrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
+      <GROUP id="{T2000001-0000-0000-0000-000000000001}" name="UI">
+        <FILE id="tGrainLookAndFeelH" name="GrainLookAndFeel.h" compile="0"
+              resource="0" file="Source/UI/GrainLookAndFeel.h"/>
+        <FILE id="tGrainLookAndFeelCpp" name="GrainLookAndFeel.cpp" compile="1"
+              resource="0" file="Source/UI/GrainLookAndFeel.cpp"/>
+        <GROUP id="{T2000002-0000-0000-0000-000000000002}" name="Components">
+          <FILE id="tMeterPanelH" name="MeterPanel.h" compile="0"
+                resource="0" file="Source/UI/Components/MeterPanel.h"/>
+          <FILE id="tMeterPanelCpp" name="MeterPanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/MeterPanel.cpp"/>
+          <FILE id="tDragDropOverlayH" name="DragDropOverlay.h" compile="0"
+                resource="0" file="Source/UI/Components/DragDropOverlay.h"/>
+          <FILE id="tDragDropOverlayCpp" name="DragDropOverlay.cpp" compile="1"
+                resource="0" file="Source/UI/Components/DragDropOverlay.cpp"/>
+        </GROUP>
+      </GROUP>
     </GROUP>
   </MAINGROUP>
   <MODULES>

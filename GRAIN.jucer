@@ -51,6 +51,42 @@
               resource="0" file="Source/UI/GrainLookAndFeel.h"/>
         <FILE id="GrainLookAndFeelCpp" name="GrainLookAndFeel.cpp" compile="1"
               resource="0" file="Source/UI/GrainLookAndFeel.cpp"/>
+        <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="Components">
+          <FILE id="HeaderPanelH" name="HeaderPanel.h" compile="0"
+                resource="0" file="Source/UI/Components/HeaderPanel.h"/>
+          <FILE id="HeaderPanelCpp" name="HeaderPanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/HeaderPanel.cpp"/>
+          <FILE id="FooterPanelH" name="FooterPanel.h" compile="0"
+                resource="0" file="Source/UI/Components/FooterPanel.h"/>
+          <FILE id="FooterPanelCpp" name="FooterPanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/FooterPanel.cpp"/>
+          <FILE id="MeterPanelH" name="MeterPanel.h" compile="0"
+                resource="0" file="Source/UI/Components/MeterPanel.h"/>
+          <FILE id="MeterPanelCpp" name="MeterPanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/MeterPanel.cpp"/>
+          <FILE id="BypassControlH" name="BypassControl.h" compile="0"
+                resource="0" file="Source/UI/Components/BypassControl.h"/>
+          <FILE id="BypassControlCpp" name="BypassControl.cpp" compile="1"
+                resource="0" file="Source/UI/Components/BypassControl.cpp"/>
+          <FILE id="ControlPanelH" name="ControlPanel.h" compile="0"
+                resource="0" file="Source/UI/Components/ControlPanel.h"/>
+          <FILE id="ControlPanelCpp" name="ControlPanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/ControlPanel.cpp"/>
+          <FILE id="DragDropOverlayH" name="DragDropOverlay.h" compile="0"
+                resource="0" file="Source/UI/Components/DragDropOverlay.h"/>
+          <FILE id="DragDropOverlayCpp" name="DragDropOverlay.cpp" compile="1"
+                resource="0" file="Source/UI/Components/DragDropOverlay.cpp"/>
+          <FILE id="StandalonePanelH" name="StandalonePanel.h" compile="0"
+                resource="0" file="Source/UI/Components/StandalonePanel.h"/>
+          <FILE id="StandalonePanelCpp" name="StandalonePanel.cpp" compile="1"
+                resource="0" file="Source/UI/Components/StandalonePanel.cpp"/>
+        </GROUP>
+      </GROUP>
+      <GROUP id="{F0A1B2C3-D4E5-6789-ABCD-EF0123456789}" name="Fonts">
+        <FILE id="InterExtraBoldItalicTtf" name="Inter-ExtraBoldItalic.ttf"
+              compile="0" resource="1" file="Source/Fonts/Inter-ExtraBoldItalic.ttf"/>
+        <FILE id="InterRegularTtf" name="Inter-Regular.ttf"
+              compile="0" resource="1" file="Source/Fonts/Inter-Regular.ttf"/>
       </GROUP>
       <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
             resource="0" file="Source/GrainColours.h"/>
