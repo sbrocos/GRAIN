@@ -210,14 +210,19 @@ GRAIN/
 │       ├── PipelineTest.cpp     # Integration tests (4 tests: full pipeline)
 │       ├── OversamplingTest.cpp # Oversampling tests (5 tests)
 │       └── CalibrationTest.cpp  # CalibrationConfig tests (3 tests)
+│       ├── FilePlayerTest.cpp   # File player/transport tests (14 tests)
+│       ├── TransportBarTest.cpp # Transport bar UI tests (5 tests)
+│       ├── WaveformTest.cpp     # Waveform display tests (4 tests)
+│       ├── DragDropTest.cpp     # Drag & drop tests (3 tests)
+│       └── RecorderTest.cpp     # Recorder tests (5 tests)
 ├── GRAINTests.jucer             # Separate Projucer project for test runner
-├── scripts/
-│   └── run_tests.sh             # Build & run all tests
+├── bin/
+│   └── run_tests               # Build & run all tests + auval
 └── docs/
     └── TESTING.md               # This file
 ```
 
-**Current count:** 59 tests (47 unit + 4 pipeline + 5 oversampling + 3 calibration)
+**Current count:** 95 tests (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI + 4 waveform display + 3 drag & drop + 5 recorder)
 
 ---
 

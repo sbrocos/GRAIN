@@ -1,19 +1,23 @@
 #!/bin/bash
 # GRAIN — Build helper script
 # Usage: ./bin/build [options]
-#   -r, --resave      Projucer resave (regenerate BinaryData & Xcode project)
+#   -r, --resave       Projucer resave (regenerate BinaryData & Xcode project)
 #   -u, --au           Build AU (Audio Unit) plugin
-#   -v, --vst3        Build VST3 plugin
+#   -v, --vst3         Build VST3 plugin
 #   -s, --standalone   Build Standalone application
-#   -o, --open        Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
-#   -a, --all         Resave + Build AU + Build VST3 + Build Standalone + Open
-#   -h, --help        Show this help message
+#   -p, --pluginval    Run pluginval (strictness 10) against VST3
+#   -o, --open         Open Standalone app
+#   -R, --release      Use Release configuration (default: Debug)
+#   -a, --all          Resave + Build AU + VST3 + Standalone + pluginval + Open
+#   -h, --help         Show this help message
 #
 # Examples:
-#   ./bin/build -r -u          # Resave then build AU
-#   ./bin/build -r -v          # Resave then build VST3
-#   ./bin/build -r -s -o       # Resave, build standalone, open it
-#   ./bin/build -a             # Resave + build everything + open
+#   ./bin/build -r -v          # Resave then build VST3 (Debug)
+#   ./bin/build -r -u          # Resave then build AU (Debug)
+#   ./bin/build -R -v -s       # Release build: VST3 + Standalone
+#   ./bin/build -v -p          # Build VST3 + run pluginval
+#   ./bin/build -a             # Resave + build everything + pluginval + open
+#   ./bin/build -R -a          # Same but Release configuration
 
 set -e
 
@@ -22,13 +26,16 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PROJUCER="/Users/sbrocos/JUCE/Projucer.app/Contents/MacOS/Projucer"
 XCODEPROJ="$PROJECT_DIR/Builds/MacOSX/GRAIN.xcodeproj"
-STANDALONE_APP="$PROJECT_DIR/Builds/MacOSX/build/Debug/GRAIN.app"
+PLUGINVAL="/Applications/pluginval.app/Contents/MacOS/pluginval"
+VST3_PATH="$HOME/Library/Audio/Plug-Ins/VST3/GRAIN.vst3"
 
 DO_RESAVE=false
 DO_AU=false
 DO_VST3=false
 DO_STANDALONE=false
+DO_PLUGINVAL=false
 DO_OPEN=false
+CONFIGURATION="Debug"
 
 show_help() {
     cat <<'HELP'
@@ -41,15 +48,19 @@ Options:
   -u, --au           Build AU (Audio Unit) plugin
   -v, --vst3         Build VST3 plugin
   -s, --standalone   Build Standalone application
-  -o, --open         Open Standalone app (Builds/MacOSX/build/Debug/GRAIN.app)
-  -a, --all          Resave + Build AU + Build VST3 + Build Standalone + Open
+  -p, --pluginval    Run pluginval (strictness 10) against VST3
+  -o, --open         Open Standalone app
+  -R, --release      Use Release configuration (default: Debug)
+  -a, --all          Resave + Build AU + VST3 + Standalone + pluginval + Open
   -h, --help         Show this help message
 
 Examples:
-  bin/build -r -v          # Resave then build VST3
-  bin/build -r -u          # Resave then build AU
-  bin/build -r -s -o       # Resave, build standalone, open it
-  bin/build -a             # Resave + build everything + open
+  bin/build -r -v          # Resave then build VST3 (Debug)
+  bin/build -r -u          # Resave then build AU (Debug)
+  bin/build -R -v -s       # Release build: VST3 + Standalone
+  bin/build -v -p          # Build VST3 + run pluginval
+  bin/build -a             # Resave + build everything + pluginval + open
+  bin/build -R -a          # Same but Release configuration
 HELP
 }
 
@@ -64,8 +75,10 @@ while [ $# -gt 0 ]; do
         -u|--au)         DO_AU=true ;;
         -v|--vst3)       DO_VST3=true ;;
         -s|--standalone) DO_STANDALONE=true ;;
+        -p|--pluginval)  DO_PLUGINVAL=true ;;
         -o|--open)       DO_OPEN=true ;;
-        -a|--all)        DO_RESAVE=true; DO_AU=true; DO_VST3=true; DO_STANDALONE=true; DO_OPEN=true ;;
+        -R|--release)    CONFIGURATION="Release" ;;
+        -a|--all)        DO_RESAVE=true; DO_AU=true; DO_VST3=true; DO_STANDALONE=true; DO_PLUGINVAL=true; DO_OPEN=true ;;
         -h|--help)       show_help; exit 0 ;;
         *)
             echo "Unknown option: $1"
@@ -76,6 +89,10 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+STANDALONE_APP="$PROJECT_DIR/Builds/MacOSX/build/$CONFIGURATION/GRAIN.app"
+
+echo "=== GRAIN Build ($CONFIGURATION) ==="
 
 # Resave
 if [ "$DO_RESAVE" = true ]; then
@@ -89,21 +106,36 @@ fi
 if [ "$DO_AU" = true ]; then
     echo "=== Building AU ==="
     xcodebuild -project "$XCODEPROJ" \
-        -scheme "GRAIN - AU" -configuration Debug build | tail -5
+        -scheme "GRAIN - AU" -configuration "$CONFIGURATION" build | tail -5
 fi
 
 # Build VST3
 if [ "$DO_VST3" = true ]; then
     echo "=== Building VST3 ==="
     xcodebuild -project "$XCODEPROJ" \
-        -scheme "GRAIN - VST3" -configuration Debug build | tail -5
+        -scheme "GRAIN - VST3" -configuration "$CONFIGURATION" build | tail -5
 fi
 
 # Build Standalone
 if [ "$DO_STANDALONE" = true ]; then
     echo "=== Building Standalone ==="
     xcodebuild -project "$XCODEPROJ" \
-        -scheme "GRAIN - Standalone Plugin" -configuration Debug build | tail -5
+        -scheme "GRAIN - Standalone Plugin" -configuration "$CONFIGURATION" build | tail -5
+fi
+
+# pluginval validation
+if [ "$DO_PLUGINVAL" = true ]; then
+    echo "=== Running pluginval (strictness 10) ==="
+    if [ ! -f "$PLUGINVAL" ]; then
+        echo "Error: pluginval not found at $PLUGINVAL"
+        exit 1
+    fi
+    if [ ! -d "$VST3_PATH" ]; then
+        echo "Error: VST3 not found at $VST3_PATH — build VST3 first (-v)"
+        exit 1
+    fi
+    "$PLUGINVAL" --skip-gui-tests --strictness-level 10 --validate "$VST3_PATH"
+    echo "pluginval PASSED"
 fi
 
 # Open Standalone
