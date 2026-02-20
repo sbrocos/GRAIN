@@ -2,6 +2,7 @@
 
 <JUCERPROJECT id="wmlhH7" name="GRAIN" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
+              pluginVersion="1.0.0"
               pluginFormats="buildAU,buildStandalone,buildVST3"
               pluginManufacturer="BrocosWave"
               pluginManufacturerCode="BrWv" pluginCode="Grn1"

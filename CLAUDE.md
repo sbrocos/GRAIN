@@ -4,7 +4,7 @@
 
 GRAIN is a micro-harmonic saturation processor designed to enrich digital signals in a subtle, controlled, and stable way. It increases perceived density and coherence without introducing obvious distortion or altering transients, tonal balance, or stereo image.
 
-**Deliverables:** VST3 plugin + Standalone application for macOS Apple Silicon (ARM64)
+**Deliverables:** VST3 + AU plugins + Standalone application for macOS Apple Silicon (ARM64)
 
 ## Tech Stack
 
@@ -14,7 +14,7 @@ GRAIN is a micro-harmonic saturation processor designed to enrich digital signal
 | Language | C++17 |
 | Build | Xcode (via Projucer) |
 | Target | macOS ARM64 (Apple Silicon) |
-| Formats | VST3, Standalone |
+| Formats | VST3, AU, Standalone |
 
 ## Repository Structure
 
@@ -63,10 +63,14 @@ GRAIN/
 │   ├── PluginProcessor.cpp
 │   ├── PluginEditor.h       # GUI
 │   └── PluginEditor.cpp
+├── release/
+│   ├── README.md            # User-facing documentation
+│   └── INSTALL.md           # Installation instructions
 ├── bin/
-│   ├── format.sh            # clang-format wrapper
-│   └── run_tests.sh         # Build & run all unit tests (CI-friendly)
-├── GRAIN.jucer              # Projucer project (VST3 + Standalone)
+│   ├── build                # Build helper (AU/VST3/Standalone, Debug/Release, pluginval)
+│   ├── format               # clang-format wrapper
+│   └── run_tests            # Build & run all unit tests + auval (CI-friendly)
+├── GRAIN.jucer              # Projucer project (VST3 + AU + Standalone)
 ├── GRAINTests.jucer         # Projucer project (ConsoleApp test runner)
 └── CLAUDE.md                # This file
 ```
@@ -232,32 +236,35 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 ## Build Commands
 
 ```bash
-# Build VST3
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - VST3" -configuration Debug build
+# Build all (Debug): resave + AU + VST3 + Standalone + pluginval + open
+./bin/build -a
 
-# Build Standalone
-xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
-  -scheme "GRAIN - Standalone Plugin" -configuration Debug build
+# Build individual targets
+./bin/build -v              # VST3 (Debug)
+./bin/build -u              # AU (Debug)
+./bin/build -s              # Standalone (Debug)
 
-# Build & Run Tests (shortcut)
-./bin/run_tests
-```
+# Release build
+./bin/build -R -u -v -s     # Release: AU + VST3 + Standalone
 
-## Validation
+# Build + validate
+./bin/build -v -p           # Build VST3 + pluginval (strictness 10)
 
-```bash
-# Use app bundle path (symlink in /usr/local/bin may not work)
-/Applications/pluginval.app/Contents/MacOS/pluginval --skip-gui-tests --validate ~/Library/Audio/Plug-Ins/VST3/GRAIN.vst3
+# Run tests
+./bin/run_tests             # Unit tests (95) + auval
 ```
 
 ## Current Status
 
+- **Version 1.0.0**
 - 95 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI + 4 waveform display + 3 drag & drop + 5 recorder)
-- VST3 + Standalone build clean
-- pluginval SUCCESS
+- AU + VST3 + Standalone build clean (Debug + Release)
+- pluginval SUCCESS (strictness 10)
+- auval SUCCESS
 - Internal oversampling: 2× real-time, 4× offline bounce
 - Separate test target (GRAINTests.jucer) with CI-friendly exit codes
+- Release package ready (release/README.md, release/INSTALL.md)
+- Validation results documented (docs/VALIDATION_RESULTS.md)
 
 ## Task Files
 
@@ -274,8 +281,8 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 | `tasks/007_oversampling.md` | Internal oversampling (2×/4×) | Done |
 | `tasks/008_plugin_editor.md` | Plugin editor Phase A + inputGain parameter | Done |
 | `tasks/009b_standalone_file_player.md` | Standalone file player, waveform, recorder | Done |
-| `tasks/010_custom_ui.md` | Custom UI (Phase B) — visual polish (5 subtasks) | Pending |
-| `tasks/011_final_validation.md` | Final validation + release package | Pending |
+| `tasks/010_custom_ui.md` | Custom UI (Phase B) — visual polish (5 subtasks) | Done |
+| `tasks/011_final_validation.md` | Final validation + release package | Done |
 
 ## Documentation
 
@@ -284,4 +291,5 @@ See `docs/` folder:
 - `DEVELOPMENT_ENVIRONMENT.md` — Setup instructions
 - `GRAIN_Code_Architecture.md` — Code architecture, class diagrams, signal flow
 - `TESTING.md` — Testing strategy
+- `VALIDATION_RESULTS.md` — Validation results (automated + manual template)
 - `Grain — Dsp Pipeline (diagram).pdf` — Visual signal flow diagram
