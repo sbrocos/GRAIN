@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="wmlhH7" name="GRAIN" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              pluginVersion="1.0.0"
-              pluginFormats="buildAU,buildStandalone,buildVST3"
-              pluginManufacturer="BrocosWave"
-              pluginManufacturerCode="BrWv" pluginCode="Grn1"
-              pluginAUMainType="'aufx'">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginVersion="1.0.0"
+              pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="BrocosWave"
+              pluginManufacturerCode="BrWv" pluginCode="Grn1" pluginAUMainType="'aufx'"
+              companyName="BrocosWave" companyCopyright="BrocosWave" companyEmail="sergiobrocos@gmail.com"
+              companyWebsite="esebrocos.gumroad.com">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
+      <FILE id="KBsQa7" name="GRAIN.icns" compile="0" resource="1" file="Resources/GRAIN.icns"
+            xcodeResource="1"/>
       <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="DSP">
         <FILE id="CalibrationConfigH" name="CalibrationConfig.h" compile="0"
               resource="0" file="Source/DSP/CalibrationConfig.h"/>
@@ -36,20 +37,20 @@
               resource="0" file="Source/Standalone/FilePlayerSource.h"/>
         <FILE id="FilePlayerSourceCpp" name="FilePlayerSource.cpp" compile="1"
               resource="0" file="Source/Standalone/FilePlayerSource.cpp"/>
-        <FILE id="TransportBarH" name="TransportBar.h" compile="0"
-              resource="0" file="Source/Standalone/TransportBar.h"/>
-        <FILE id="TransportBarCpp" name="TransportBar.cpp" compile="1"
-              resource="0" file="Source/Standalone/TransportBar.cpp"/>
-        <FILE id="WaveformDisplayH" name="WaveformDisplay.h" compile="0"
-              resource="0" file="Source/Standalone/WaveformDisplay.h"/>
+        <FILE id="TransportBarH" name="TransportBar.h" compile="0" resource="0"
+              file="Source/Standalone/TransportBar.h"/>
+        <FILE id="TransportBarCpp" name="TransportBar.cpp" compile="1" resource="0"
+              file="Source/Standalone/TransportBar.cpp"/>
+        <FILE id="WaveformDisplayH" name="WaveformDisplay.h" compile="0" resource="0"
+              file="Source/Standalone/WaveformDisplay.h"/>
         <FILE id="WaveformDisplayCpp" name="WaveformDisplay.cpp" compile="1"
               resource="0" file="Source/Standalone/WaveformDisplay.cpp"/>
-        <FILE id="AudioFileUtilsH" name="AudioFileUtils.h" compile="0"
-              resource="0" file="Source/Standalone/AudioFileUtils.h"/>
-        <FILE id="AudioRecorderH" name="AudioRecorder.h" compile="0"
-              resource="0" file="Source/Standalone/AudioRecorder.h"/>
-        <FILE id="AudioRecorderCpp" name="AudioRecorder.cpp" compile="1"
-              resource="0" file="Source/Standalone/AudioRecorder.cpp"/>
+        <FILE id="AudioFileUtilsH" name="AudioFileUtils.h" compile="0" resource="0"
+              file="Source/Standalone/AudioFileUtils.h"/>
+        <FILE id="AudioRecorderH" name="AudioRecorder.h" compile="0" resource="0"
+              file="Source/Standalone/AudioRecorder.h"/>
+        <FILE id="AudioRecorderCpp" name="AudioRecorder.cpp" compile="1" resource="0"
+              file="Source/Standalone/AudioRecorder.cpp"/>
       </GROUP>
       <GROUP id="{C1D2E3F4-A5B6-7890-CDEF-AB1234567890}" name="UI">
         <FILE id="GrainLookAndFeelH" name="GrainLookAndFeel.h" compile="0"
@@ -57,24 +58,22 @@
         <FILE id="GrainLookAndFeelCpp" name="GrainLookAndFeel.cpp" compile="1"
               resource="0" file="Source/UI/GrainLookAndFeel.cpp"/>
         <GROUP id="{D2E3F4A5-B6C7-8901-DEFA-BC2345678901}" name="Resources">
-          <FILE id="IndexHtml" name="index.html" compile="0"
-                resource="1" file="Source/UI/Resources/index.html"/>
-          <FILE id="GrainUiJs" name="grain-ui.js" compile="0"
-                resource="1" file="Source/UI/Resources/grain-ui.js"/>
-          <FILE id="GrainUiCss" name="grain-ui.css" compile="0"
-                resource="1" file="Source/UI/Resources/grain-ui.css"/>
+          <FILE id="IndexHtml" name="index.html" compile="0" resource="1" file="Source/UI/Resources/index.html"/>
+          <FILE id="GrainUiJs" name="grain-ui.js" compile="0" resource="1" file="Source/UI/Resources/grain-ui.js"/>
+          <FILE id="GrainUiCss" name="grain-ui.css" compile="0" resource="1"
+                file="Source/UI/Resources/grain-ui.css"/>
         </GROUP>
         <GROUP id="{E3F4A5B6-C7D8-9012-EFAB-CD3456789012}" name="Fonts">
-          <FILE id="InterRegularTtf" name="Inter-Regular.ttf" compile="0"
-                resource="1" file="Source/Fonts/Inter-Regular.ttf"/>
+          <FILE id="InterRegularTtf" name="Inter-Regular.ttf" compile="0" resource="1"
+                file="Source/Fonts/Inter-Regular.ttf"/>
           <FILE id="InterRegularItalicTtf" name="Inter-RegularItalic.ttf" compile="0"
                 resource="1" file="Source/Fonts/Inter-RegularItalic.ttf"/>
-          <FILE id="InterExtraBoldItalicTtf" name="Inter-ExtraBoldItalic.ttf" compile="0"
-                resource="1" file="Source/Fonts/Inter-ExtraBoldItalic.ttf"/>
+          <FILE id="InterExtraBoldItalicTtf" name="Inter-ExtraBoldItalic.ttf"
+                compile="0" resource="1" file="Source/Fonts/Inter-ExtraBoldItalic.ttf"/>
         </GROUP>
       </GROUP>
-      <FILE id="GrainColoursH" name="GrainColours.h" compile="0"
-            resource="0" file="Source/GrainColours.h"/>
+      <FILE id="GrainColoursH" name="GrainColours.h" compile="0" resource="0"
+            file="Source/GrainColours.h"/>
       <FILE id="bG1kmQ" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="VgFP9X" name="PluginProcessor.h" compile="0" resource="0"
@@ -105,9 +104,8 @@
   </MODULES>
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
-    <XCODE_MAC targetFolder="Builds/MacOSX"
-              microphonePermissionNeeded="1"
-              microphonePermissionsText="GRAIN needs audio input access for real-time processing">
+    <XCODE_MAC targetFolder="Builds/MacOSX" microphonePermissionNeeded="1" microphonePermissionsText="GRAIN needs audio input access for real-time processing"
+               customXcodeResourceFolders="../Resources">
       <CONFIGURATIONS>
         <CONFIGURATION isDebug="1" name="Debug" targetName="GRAIN"/>
         <CONFIGURATION isDebug="0" name="Release" targetName="GRAIN"/>
