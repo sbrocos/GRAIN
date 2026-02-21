@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document defines the development environment for building GRAIN, a micro-harmonic saturation processor delivered as a VST3 plugin and standalone application for macOS Apple Silicon.
+This document defines the development environment for building GRAIN, a micro-harmonic saturation processor delivered as VST3 + AU plugins and standalone application for macOS (Apple Silicon + Intel).
 
 ---
 
@@ -11,7 +11,7 @@ This document defines the development environment for building GRAIN, a micro-ha
 | Component | Specification |
 |-----------|---------------|
 | **OS** | macOS Tahoe (26.x) |
-| **Architecture** | Apple Silicon (ARM64) |
+| **Architecture** | Apple Silicon (ARM64) + Intel (x86_64) |
 | **Xcode** | 16.x or later (required for compilation and code signing) |
 | **Xcode Command Line Tools** | Required |
 

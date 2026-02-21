@@ -1,5 +1,5 @@
 # ACADEMIC DELIVERABLE — FINAL PROJECT  
-## GRAIN: Micro-harmonic saturation processor (VST3 + Standalone)
+## GRAIN: Micro-harmonic saturation processor (VST3 + AU + Standalone)
 
 **Author:** Sergio Brocos
 **Program:** Master Desarrollo con IA
@@ -10,11 +10,24 @@
 ---
 
 ## 1. Abstract
-GRAIN is a micro-harmonic saturation processor designed to enrich digital signals in a subtle, controlled, and stable way. Its goal is to increase perceived density and coherence without introducing obvious distortion or altering transients, tonal balance, or stereo image—especially within typical usage ranges (10–20% wet). The system is delivered as a VST3 plugin for macOS Apple Silicon and as a minimal real-time standalone monitoring application. The DSP design relies on a smooth nonlinear transfer function (tanh), level-dependent mild asymmetry (slow RMS-based behavior), and a band-focused spectral emphasis (Low/Mid/High). Oversampling is managed internally (2× in real-time and 4× during offline rendering) to reduce aliasing while keeping the user experience simple.
+GRAIN is a micro-harmonic saturation processor designed to enrich digital signals in a subtle, controlled, and stable way. Its goal is to increase perceived density and coherence without introducing obvious distortion or altering transients, tonal balance, or stereo image—especially within typical usage ranges (10–20% wet). The system is delivered as a VST3 and AU plugin for macOS (Apple Silicon and Intel) and as a minimal real-time standalone monitoring application. The DSP design relies on a smooth nonlinear transfer function (tanh), level-dependent mild asymmetry (slow RMS-based behavior), and a band-focused spectral emphasis (Low/Mid/High). Oversampling is managed internally (2× in real-time and 4× during offline rendering) to reduce aliasing while keeping the user experience simple.
 
 ---
 
 ## 2. Background and motivation
+
+### 2.1 Personal motivation
+
+GRAIN sits at the intersection of two paths that have defined my life in parallel: software development and music production.
+
+As a Senior Ruby on Rails developer, I have spent years building robust systems and thinking in abstractions. Music production, however, has always been my creative counterweight — something I pursued with the same intensity but in a completely different dimension. For a long time, these two worlds coexisted separately. I knew how to write code, and I knew how to produce music, but building an audio plugin — something that lives inside a DAW and processes sound in real time — felt like a completely different discipline, one I didn’t know how to approach.
+
+AI changed that. Working with AI as a development partner allowed me to navigate an unfamiliar domain (C++, JUCE, DSP) while applying the engineering mindset I already had. It didn’t write the project for me — it gave me the map to find my own way through it.
+
+GRAIN is the result of that convergence: a tool I actually use in my own productions, built with skills I acquired through this master’s program, in a domain I was passionate about but never thought I could access.
+
+### 2.2 Technical motivation
+
 Digital production workflows may sound “cold”, “flat”, or lacking glue on certain buses (drums, pads, mix bus). Many saturation tools add strong coloration, which can be intrusive for mixing or light pre-master use. GRAIN is conceived as a “safe” processor: its contribution should be mostly perceived when bypassed (bypass reveal), providing density and stability without a strong audible color.
 
 ---
@@ -32,14 +45,14 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
    - discrete spectral focus control (Low/Mid/High).
 3. Reduce aliasing via internal oversampling not exposed to the user.
 4. Ensure zero-latency in real-time processing.
-5. Deliver both a VST3 plugin and a minimal standalone application.
+5. Deliver both VST3 and AU plugins and a minimal standalone application.
 6. Validate through listening and technical checks (bypass reveal, stability, no level jumps).
 
 ---
 
 ## 4. Scope and deliverables
 ### 4.1 Scope (V1)
-- **VST3** plugin for **macOS Apple Silicon (ARM64)**.
+- **VST3 and AU** plugins for **macOS (Apple Silicon ARM64 + Intel x86_64)**.
 - Minimum guaranteed sample rate: **44.1 kHz**.
 - User parameters: Input Gain, Drive (Grain), Warmth, Focus (Low/Mid/High), Mix, Output Gain, Bypass.
 - Internal oversampling: 2× real-time; 4× offline render.
@@ -49,9 +62,7 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 
 ### 4.2 Out of scope (V1)
 - Presets and A/B (planned for V1.1).
-- Advanced custom UI.
 - Exposed technical parameters (oversampling, internal ceilings).
-- Audio file player/recorder in the standalone app.
 
 ### 4.3 Deliverables
 - Final PRD/PDR document (Markdown).
@@ -73,7 +84,7 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 - **Stability:** no artifacts, no instability on sustained material, no level jumps.
 - **Performance:** reasonable CPU usage across multiple instances (moderate oversampling).
 - **Usability:** simple interface and no technical decisions required from the user.
-- **Compatibility:** macOS Apple Silicon; minimum 44.1 kHz.
+- **Compatibility:** macOS Apple Silicon (ARM64) and Intel (x86_64); minimum 44.1 kHz.
 - **Latency:** zero in real-time.
 
 ---
@@ -109,7 +120,7 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 ---
 
 ## 8. Implementation plan (high level)
-1. VST3 plugin skeleton (stereo processing, parameters, state).
+1. VST3 + AU plugin skeleton (stereo processing, parameters, state).
 2. Core DSP (tanh + drive + mix).
 3. Integrate slow RMS detector and dynamic bias.
 4. Implement Focus (3 bands) with safe transitions.
@@ -155,11 +166,10 @@ Design and implement a transparent micro-harmonic saturation processor for bus a
 - A/B
 - Presets
 - Optional stereo Link/Unlink (if validated by real use cases)
-- Optional custom UI while keeping a minimal and safe UX philosophy
 
 ---
 
 ## 13. Conclusion
-GRAIN proposes a stability-first approach to micro-harmonic saturation for buses and light pre-master use. The combination of a slow RMS detector, controlled triode-like asymmetry, a tanh-based waveshaper, and moderate internal oversampling aims to deliver subtle density and cohesion without artifacts or intrusive tonal/stereo changes. The deliverables include a VST3 plugin for macOS Apple Silicon and a minimal standalone application for testing and basic usage.
+GRAIN proposes a stability-first approach to micro-harmonic saturation for buses and light pre-master use. The combination of a slow RMS detector, controlled triode-like asymmetry, a tanh-based waveshaper, and moderate internal oversampling aims to deliver subtle density and cohesion without artifacts or intrusive tonal/stereo changes. The deliverables include VST3 and AU plugins for macOS (Apple Silicon and Intel) and a minimal standalone application for testing and basic usage.
 
 ---

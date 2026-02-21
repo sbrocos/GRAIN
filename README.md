@@ -33,11 +33,11 @@ Zero latency in real-time. No technical decisions required from the user.
 
 | Format | Status |
 |--------|--------|
-| VST3 | ✅ macOS Apple Silicon (ARM64) |
-| AU (Audio Unit) | ✅ macOS Apple Silicon (ARM64) |
+| VST3 | ✅ macOS (Apple Silicon + Intel) |
+| AU (Audio Unit) | ✅ macOS (Apple Silicon + Intel) |
 | Standalone App | ✅ Real-time monitoring with device selector |
 
-**Minimum system:** macOS 11.0+, Apple Silicon (ARM64), 44.1 kHz sample rate.
+**Minimum system:** macOS 11.0+, Apple Silicon (ARM64) or Intel (x86_64), 44.1 kHz sample rate.
 
 ---
 
@@ -113,7 +113,7 @@ GRAIN is open source under GPL-3.0. The project uses JUCE 8.x with a standard Pr
 
 ### Prerequisites
 
-- macOS 11.0+ (Apple Silicon, ARM64)
+- macOS 11.0+ (Apple Silicon ARM64 or Intel x86_64)
 - Xcode 16+
 - JUCE 8.x (Projucer) — [download](https://juce.com/download/)
 - Command Line Tools: `xcode-select --install`
@@ -223,7 +223,7 @@ The primary validation method for GRAIN is the **bypass reveal**: enable the plu
 ## Roadmap
 
 ### V1 (current)
-- VST3 + AU plugin for macOS Apple Silicon
+- VST3 + AU plugin for macOS (Apple Silicon + Intel)
 - Standalone app with real-time monitoring
 - Core DSP chain: tanh + RMS + dynamic bias + warmth + spectral focus + oversampling
 
@@ -231,10 +231,8 @@ The primary validation method for GRAIN is the **bypass reveal**: enable the plu
 - A/B comparison
 - Parameter presets
 - Optional stereo link/unlink
-- Optional audio file player in standalone (dry/wet A/B without loopback)
 
 ### Future
-- Custom UI (Phase B visual design)
 - Optional stereo independent processing mode
 
 ---

@@ -4,7 +4,7 @@
 
 GRAIN is a micro-harmonic saturation processor designed to enrich digital signals in a subtle, controlled, and stable way. It increases perceived density and coherence without introducing obvious distortion or altering transients, tonal balance, or stereo image.
 
-**Deliverables:** VST3 + AU plugins + Standalone application for macOS Apple Silicon (ARM64)
+**Deliverables:** VST3 + AU plugins + Standalone application for macOS (Apple Silicon + Intel)
 
 ## Tech Stack
 
@@ -13,7 +13,7 @@ GRAIN is a micro-harmonic saturation processor designed to enrich digital signal
 | Framework | JUCE 8.x |
 | Language | C++17 |
 | Build | Xcode (via Projucer) |
-| Target | macOS ARM64 (Apple Silicon) |
+| Target | macOS (Apple Silicon ARM64 + Intel x86_64) |
 | Formats | VST3, AU, Standalone |
 
 ## Repository Structure
