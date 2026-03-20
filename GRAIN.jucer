@@ -2,10 +2,10 @@
 
 <JUCERPROJECT id="wmlhH7" name="GRAIN" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginVersion="1.0.0"
-              pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="BrocosWave"
+              pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="IchiWave"
               pluginManufacturerCode="BrWv" pluginCode="Grn1" pluginAUMainType="'aufx'"
               companyName="BrocosWave" companyCopyright="BrocosWave" companyEmail="sergiobrocos@gmail.com"
-              companyWebsite="esebrocos.gumroad.com">
+              companyWebsite="theichiwave.gumroad.com">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
       <FILE id="KBsQa7" name="GRAIN.icns" compile="0" resource="1" file="Resources/GRAIN.icns"
