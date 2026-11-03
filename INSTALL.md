@@ -16,7 +16,7 @@
    - System: `/Library/Audio/Plug-Ins/Components/`
    - User: `~/Library/Audio/Plug-Ins/Components/`
 3. Restart your DAW
-4. The plugin should appear under **BrocosWave > GRAIN**
+4. The plugin should appear under **Broqui Labs > GRAIN**
 
 ## Standalone Application
 

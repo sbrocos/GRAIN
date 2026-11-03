@@ -64,7 +64,7 @@ def main():
         # Plugin definitions
         '-DJucePlugin_Name="GRAIN"',
         '-DJucePlugin_Desc="GRAIN"',
-        '-DJucePlugin_Manufacturer="yourcompany"',
+        '-DJucePlugin_Manufacturer="Broqui Labs"',
         '-DJucePlugin_Version=1.0.0',
         '-DJucePlugin_VersionString="1.0.0"',
         "-DJucePlugin_Build_VST3=1",

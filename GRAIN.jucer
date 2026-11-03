@@ -2,10 +2,10 @@
 
 <JUCERPROJECT id="wmlhH7" name="GRAIN" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginVersion="1.0.0"
-              pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="IchiWave"
-              pluginManufacturerCode="BrWv" pluginCode="Grn1" pluginAUMainType="'aufx'"
-              companyName="BrocosWave" companyCopyright="BrocosWave" companyEmail="sergiobrocos@gmail.com"
-              companyWebsite="theichiwave.gumroad.com">
+              pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="Broqui Labs"
+              pluginManufacturerCode="BrWv" pluginCode="Grn1" bundleIdentifier="com.BroquiLabs.GRAIN" pluginAUMainType="'aufx'"
+              companyName="Broqui Labs" companyCopyright="Broqui Labs" companyEmail="sergiobrocos@gmail.com"
+              companyWebsite="https://broquilabs.com">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
       <FILE id="KBsQa7" name="GRAIN.icns" compile="0" resource="1" file="Resources/GRAIN.icns"
@@ -105,10 +105,10 @@
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" microphonePermissionNeeded="1" microphonePermissionsText="GRAIN needs audio input access for real-time processing"
-               customXcodeResourceFolders="../Resources">
+               customXcodeResourceFolders="Resources">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="GRAIN"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="GRAIN"/>
+        <CONFIGURATION isDebug="1" name="Debug" macOSDeploymentTarget="12.0" targetName="GRAIN"/>
+        <CONFIGURATION isDebug="0" name="Release" macOSDeploymentTarget="12.0" targetName="GRAIN"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_animation" path="../../../JUCE/modules"/>

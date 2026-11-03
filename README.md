@@ -249,4 +249,4 @@ GRAIN uses [JUCE](https://juce.com), distributed under the GPLv3 license for ope
 
 **Sergio Brocos**  
 Master en Desarrollo con IA  
-[GitHub](https://github.com/sbrocos) · [Gumroad](https://theichiwave.gumroad.com.gumroad.com)
+[GitHub](https://github.com/sbrocos) · [Gumroad](https://theichiwave.gumroad.com)
