@@ -5,7 +5,7 @@
               pluginFormats="buildAU,buildStandalone,buildVST3" pluginManufacturer="Broqui Labs"
               pluginManufacturerCode="BrWv" pluginCode="Grn1" bundleIdentifier="com.BroquiLabs.GRAIN" pluginAUMainType="'aufx'"
               companyName="Broqui Labs" companyCopyright="Broqui Labs" companyEmail="sergiobrocos@gmail.com"
-              companyWebsite="theichiwave.gumroad.com">
+              companyWebsite="https://broquilabs.com">
   <MAINGROUP id="kzT2TQ" name="GRAIN">
     <GROUP id="{D7960C17-520A-3AEA-0E24-1FDC8D695321}" name="Source">
       <FILE id="KBsQa7" name="GRAIN.icns" compile="0" resource="1" file="Resources/GRAIN.icns"
