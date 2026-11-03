@@ -105,10 +105,10 @@
   <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" microphonePermissionNeeded="1" microphonePermissionsText="GRAIN needs audio input access for real-time processing"
-               customXcodeResourceFolders="../Resources">
+               customXcodeResourceFolders="Resources">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="GRAIN"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="GRAIN"/>
+        <CONFIGURATION isDebug="1" name="Debug" macOSDeploymentTarget="12.0" targetName="GRAIN"/>
+        <CONFIGURATION isDebug="0" name="Release" macOSDeploymentTarget="12.0" targetName="GRAIN"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_animation" path="../../../JUCE/modules"/>
