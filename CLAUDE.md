@@ -256,7 +256,7 @@ xcodebuild -project Builds/MacOSX/GRAIN.xcodeproj \
 
 ## Current Status
 
-- **Version 1.0.0**
+- **Version 1.0.1**
 - 95 tests passing (47 unit + 4 pipeline + 5 oversampling + 3 calibration + 5 standalone + 14 file player/transport + 5 transport bar UI + 4 waveform display + 3 drag & drop + 5 recorder)
 - AU + VST3 + Standalone build clean (Debug + Release)
 - pluginval SUCCESS (strictness 10)
